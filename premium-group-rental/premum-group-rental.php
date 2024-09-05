@@ -8,6 +8,13 @@ Author: Bermen
 
 register_activation_hook(__FILE__, 'wc_rental_activate');
 
+function pgr_enqueue_widget_assets()
+{
+    wp_enqueue_style('improved-woocommerce-search-filter', plugins_url('assets/css/improved-woocommerce-search-filter-styles.css', __FILE__));
+    wp_enqueue_script('improved-woocommerce-search-filter', plugins_url('assets/js/improved-woocommerce-search-filter.js', __FILE__), array('jquery'), null, true);
+}
+add_action('wp_enqueue_scripts', 'pgr_enqueue_widget_assets');
+
 function wc_rental_activate()
 {
     wc_rental_create_table();
