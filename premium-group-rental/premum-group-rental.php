@@ -6,6 +6,9 @@ Version: 1.0
 Author: Bermen
 */
 
+// Inclure le plugin Cars Manager
+require_once plugin_dir_path(__FILE__) . 'premium-group-cars-manager.php';
+
 register_activation_hook(__FILE__, 'wc_rental_activate');
 
 function wc_rental_activate()
