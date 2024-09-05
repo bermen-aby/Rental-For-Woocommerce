@@ -1,12 +1,6 @@
 <?php
 class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
 {
-
-    public function __construct()
-    {
-        parent::__construct();
-        add_action('elementor/frontend/after_register_scripts', [$this, 'register_widget_scripts']);
-    }
     public function get_name()
     {
         return 'improved_woocommerce_search_filter';
@@ -25,12 +19,6 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
     public function get_categories()
     {
         return ['general'];
-    }
-
-    public function register_widget_scripts()
-    {
-        wp_enqueue_style('nouislider', 'https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/14.6.3/nouislider.min.css');
-        wp_enqueue_script('nouislider', 'https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/14.6.3/nouislider.min.js', array('jquery'), null, true);
     }
 
     protected function _register_controls()
@@ -67,24 +55,13 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
             ]
         );
 
-        $this->add_control(
-            'car_attributes',
-            [
-                'label' => __('Attributs de véhicule à afficher', 'text-domain'),
-                'type' => \Elementor\Controls_Manager::SELECT2,
-                'options' => $this->get_car_attributes(),
-                'multiple' => true,
-                'default' => array_keys($this->get_car_attributes()),
-            ]
-        );
-
         $this->end_controls_section();
     }
 
     protected function render()
     {
         $settings = $this->get_settings_for_display();
-        $attributes = $settings['car_attributes'];
+        $attributes = $this->get_car_attributes();
         $max_price = $this->get_max_product_price();
 ?>
         <div class="woocommerce-search-filter-widget">
@@ -243,18 +220,18 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
     private function get_car_attributes()
     {
         return [
-            'marque' => __('Marque', 'text-domain'),
-            'modele' => __('Modèle', 'text-domain'),
-            'annee' => __('Année', 'text-domain'),
-            'finition' => __('Finition', 'text-domain'),
-            'etat' => __('État', 'text-domain'),
-            'carrosserie' => __('Carrosserie', 'text-domain'),
-            'transmission' => __('Transmission', 'text-domain'),
-            'moteur' => __('Moteur', 'text-domain'),
-            'groupe_motopropulseur' => __('Groupe motopropulseur', 'text-domain'),
-            'type_carburant' => __('Type de carburant', 'text-domain'),
-            'couleur_exterieure' => __('Couleur extérieure', 'text-domain'),
-            'couleur_interieure' => __('Couleur intérieure', 'text-domain')
+            'marque',
+            'modele',
+            'annee',
+            'finition',
+            'etat',
+            'carrosserie',
+            'transmission',
+            'moteur',
+            'groupe_motopropulseur',
+            'type_carburant',
+            'couleur_exterieure',
+            'couleur_interieure'
         ];
     }
 
@@ -296,7 +273,7 @@ function update_dynamic_filters()
     // Get current filter values
     $current_filters = [];
     foreach ($attributes as $attribute) {
-        if (isset($_GET[$attribute]) && !empty($_GET[$attribute])) {
+        if (isset($_GET[$attribute])) {
             $current_filters[$attribute] = sanitize_text_field($_GET[$attribute]);
         }
     }
@@ -321,20 +298,18 @@ function update_dynamic_filters()
 
     // Get available options for each attribute
     foreach ($attributes as $attribute) {
-        if (!isset($current_filters[$attribute])) {
-            $terms = get_terms([
-                'taxonomy' => $attribute,
-                'hide_empty' => true,
-                'object_ids' => $product_ids,
-            ]);
+        $terms = get_terms([
+            'taxonomy' => $attribute,
+            'hide_empty' => true,
+            'object_ids' => $product_ids,
+        ]);
 
-            $options = [];
-            foreach ($terms as $term) {
-                $options[$term->slug] = $term->name;
-            }
-
-            $response[$attribute] = $options;
+        $options = [];
+        foreach ($terms as $term) {
+            $options[$term->slug] = $term->name;
         }
+
+        $response[$attribute] = $options;
     }
 
     // Get price range
