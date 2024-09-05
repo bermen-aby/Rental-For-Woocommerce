@@ -1,0 +1,97 @@
+.rental-section {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.rental-section .card-header {
+    background-color: #f5f5f5;
+    padding: 10px 15px;
+    border-bottom: 1px solid #ddd;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+}
+
+.rental-section .card-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.rental-section .card-body {
+    padding: 15px;
+}
+
+.rental-section .rental-description {
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.rental-section .rental-dates {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.rental-section .rental-dates .form-group {
+    flex: 1;
+    margin-right: 16px;
+}
+
+.rental-section .rental-dates .form-group:last-child {
+    margin-right: 0;
+}
+
+.rental-section .rental-dates label {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 5px;
+}
+
+.rental-section .rental-dates input[type="date"] {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
+
+.rental-section .rental-price {
+    margin-bottom: 10px;
+}
+
+.rental-section .rental-price td {
+    /*padding: 1px 0;  Moins d'espace entre les lignes */
+    font-size: 12px; /* Réduction de la taille de police */
+    text-transform: lowercase; /* Texte en minuscules */
+}
+
+.rental-section .rental-price td.price {
+    text-align: right;
+    font-weight: bold;
+}
+
+.rental-section .rental-price-total {
+    font-size: 14px; /* Légère réduction du prix total */
+    font-weight: bold;
+}
+
+.rental-section .rental-actions {
+    text-align: right;
+}
+
+.rental-section .rental-actions .button {
+    font-size: 16px;
+    background-color: #007bff;
+    border-color: #007bff;
+    color: #fff;
+    padding: 12px 30px;
+    border-radius: 3px;
+    text-decoration: none;
+}
+
+.rental-section .rental-actions .button:hover {
+    background-color: #0056b3;
+    border-color: #004a99;
+}
