@@ -116,7 +116,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                     var formData = $('#search-filter-form').serialize();
                     $.ajax({
                         url: '<?php echo admin_url('admin-ajax.php'); ?>',
-                        data: formData + '&action=update_dynamic_filters',
+                        data: formData + '&action=update_dynamic_filters_elementor',
                         success: function(response) {
                             $.each(response, function(attribute, options) {
                                 var select = $('select[name="' + attribute + '"]');
@@ -248,10 +248,10 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
 }
 
 // Add this function to your theme's functions.php or in a separate plugin file
-add_action('wp_ajax_update_dynamic_filters', 'update_dynamic_filters');
-add_action('wp_ajax_nopriv_update_dynamic_filters', 'update_dynamic_filters');
+add_action('wp_ajax_update_dynamic_filters_elementor', 'update_dynamic_filters_elementor');
+add_action('wp_ajax_nopriv_update_dynamic_filters_elementor', 'update_dynamic_filters_elementor');
 
-function update_dynamic_filters()
+function update_dynamic_filters_elementor()
 {
     $attributes = [
         'marque',
