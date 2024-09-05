@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name: Premium Group - Cars Manager
-Description: Plugin pour gérer les produits de type Voiture dans WooCommerce.
-Version: 1.2
+Description: Plugin pour gérer les produits de type Voiture et Pièce détachée dans WooCommerce.
+Version: 1.5
 Author: Bermen
 */
 
@@ -14,52 +14,25 @@ class PremiumGroupCarsManager
 {
     public function __construct()
     {
-        add_action('init', [$this, 'register_car_taxonomies']);
+        add_filter('product_type_selector', [$this, 'add_car_product_type']);
         add_filter('woocommerce_product_data_tabs', [$this, 'add_car_attributes_tab']);
         add_action('woocommerce_product_data_panels', [$this, 'add_car_attributes_fields']);
         add_action('woocommerce_process_product_meta', [$this, 'save_car_attributes_fields']);
         add_action('woocommerce_single_product_summary', [$this, 'display_car_information'], 25);
-        add_filter('woocommerce_get_sections_products', [$this, 'add_car_attributes_section']);
-        add_filter('woocommerce_get_settings_products', [$this, 'add_car_attributes_settings'], 10, 2);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_scripts']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_scripts']);
         add_filter('woocommerce_product_tabs', [$this, 'remove_product_tabs'], 98);
+        add_filter('manage_edit-product_columns', [$this, 'customize_product_columns']);
+        add_action('manage_product_posts_custom_column', [$this, 'custom_product_column'], 10, 2);
+        add_filter('manage_edit-product_sortable_columns', [$this, 'make_product_type_column_sortable']);
+        add_action('pre_get_posts', [$this, 'product_type_orderby']);
+        add_action('woocommerce_product_options_general_product_data', [$this, 'add_product_type_field']);
     }
 
-    public function register_car_taxonomies()
+    public function add_car_product_type($types)
     {
-        $taxonomies = [
-            'marque' => 'Marque',
-            'modele' => 'Modèle',
-            'annee' => 'Année',
-            'numero_inventaire' => 'Numéro d\'inventaire',
-            'numero_vin' => 'Numéro VIN',
-            'finition' => 'Finition',
-            'etat' => 'État',
-            'carrosserie' => 'Carrosserie',
-            'transmission' => 'Transmission',
-            'moteur' => 'Moteur',
-            'groupe_motopropulseur' => 'Groupe motopropulseur',
-            'type_carburant' => 'Type de carburant',
-            'economie_carburant' => 'Économie de carburant',
-            'kilometrage' => 'Kilométrage',
-            'couleur_exterieure' => 'Couleur extérieure',
-            'couleur_interieure' => 'Couleur intérieure',
-            'consommation_ville' => 'Consommation de carburant: Ville',
-            'consommation_autoroute' => 'Consommation de carburant: Autoroute',
-        ];
-
-        foreach ($taxonomies as $taxonomy => $label) {
-            register_taxonomy($taxonomy, 'product', [
-                'label' => $label,
-                'rewrite' => ['slug' => $taxonomy],
-                'hierarchical' => false,
-                'show_ui' => true,
-                'show_admin_column' => true,
-                'query_var' => true,
-                'show_in_rest' => true,
-            ]);
-        }
+        $types['car'] = __('Voiture', 'text-domain');
+        return $types;
     }
 
     public function add_car_attributes_tab($tabs)
@@ -67,13 +40,15 @@ class PremiumGroupCarsManager
         $tabs['car_attributes'] = [
             'label' => __('Attributs du véhicule', 'text-domain'),
             'target' => 'car_attributes_data',
-            'class' => ['hide_if_grouped'],
+            'class' => [], // Retiré la classe 'show_if_car' pour que l'onglet soit toujours visible
         ];
         return $tabs;
     }
 
     public function add_car_attributes_fields()
     {
+        global $post;
+
         echo '<div id="car_attributes_data" class="panel woocommerce_options_panel">';
 
         $fields = [
@@ -105,8 +80,9 @@ class PremiumGroupCarsManager
                 'description' => __('Entrez la ' . strtolower($label) . ' de la voiture.', 'text-domain'),
                 'class' => 'car-attribute-input',
                 'custom_attributes' => [
-                    'data-taxonomy' => $key,
+                    'data-attribute' => $key,
                 ],
+                'value' => get_post_meta($post->ID, $key, true),
             ]);
         }
 
@@ -138,13 +114,7 @@ class PremiumGroupCarsManager
 
         foreach ($fields as $field) {
             if (isset($_POST[$field])) {
-                $term = term_exists($_POST[$field], $field);
-                if (!$term) {
-                    $term = wp_insert_term($_POST[$field], $field);
-                }
-                if (!is_wp_error($term)) {
-                    wp_set_object_terms($post_id, $term['term_id'], $field);
-                }
+                update_post_meta($post_id, $field, sanitize_text_field($_POST[$field]));
             }
         }
     }
@@ -177,10 +147,9 @@ class PremiumGroupCarsManager
         echo '<div class="car-information">';
         echo '<h2>' . __('Caractéristiques du véhicule', 'text-domain') . '</h2>';
         echo '<table class="car-attributes-table">';
-        foreach ($fields as $label => $taxonomy) {
-            $terms = get_the_terms($product->get_id(), $taxonomy);
-            if ($terms && !is_wp_error($terms)) {
-                $value = $terms[0]->name;
+        foreach ($fields as $label => $key) {
+            $value = get_post_meta($product->get_id(), $key, true);
+            if ($value) {
                 echo '<tr>';
                 echo '<th>' . esc_html($label) . '</th>';
                 echo '<td>' . esc_html($value) . '</td>';
@@ -189,62 +158,6 @@ class PremiumGroupCarsManager
         }
         echo '</table>';
         echo '</div>';
-    }
-
-    public function add_car_attributes_section($sections)
-    {
-        $sections['car_attributes'] = __('Attributs du véhicule', 'text-domain');
-        return $sections;
-    }
-
-    public function add_car_attributes_settings($settings, $current_section)
-    {
-        if ($current_section == 'car_attributes') {
-            $settings = array();
-            $settings[] = array(
-                'name' => __('Paramètres des attributs du véhicule', 'text-domain'),
-                'type' => 'title',
-                'desc' => __('Configurez les attributs du véhicule ici.', 'text-domain'),
-                'id' => 'car_attributes_settings'
-            );
-
-            $taxonomies = $this->get_car_taxonomies();
-            foreach ($taxonomies as $taxonomy => $label) {
-                $settings[] = array(
-                    'name' => $label,
-                    'type' => 'checkbox',
-                    'desc' => sprintf(__('Activer l\'attribut %s', 'text-domain'), $label),
-                    'id' => 'car_attribute_' . $taxonomy
-                );
-            }
-
-            $settings[] = array('type' => 'sectionend', 'id' => 'car_attributes_settings');
-        }
-        return $settings;
-    }
-
-    private function get_car_taxonomies()
-    {
-        return [
-            'marque' => 'Marque',
-            'modele' => 'Modèle',
-            'annee' => 'Année',
-            'numero_inventaire' => 'Numéro d\'inventaire',
-            'numero_vin' => 'Numéro VIN',
-            'finition' => 'Finition',
-            'etat' => 'État',
-            'carrosserie' => 'Carrosserie',
-            'transmission' => 'Transmission',
-            'moteur' => 'Moteur',
-            'groupe_motopropulseur' => 'Groupe motopropulseur',
-            'type_carburant' => 'Type de carburant',
-            'economie_carburant' => 'Économie de carburant',
-            'kilometrage' => 'Kilométrage',
-            'couleur_exterieure' => 'Couleur extérieure',
-            'couleur_interieure' => 'Couleur intérieure',
-            'consommation_ville' => 'Consommation de carburant: Ville',
-            'consommation_autoroute' => 'Consommation de carburant: Autoroute',
-        ];
     }
 
     public function enqueue_scripts()
@@ -275,6 +188,56 @@ class PremiumGroupCarsManager
         unset($tabs['additional_information']);
         return $tabs;
     }
+
+    public function customize_product_columns($columns)
+    {
+        $columns['product_type'] = __('Type de produit', 'text-domain');
+        return $columns;
+    }
+
+    public function custom_product_column($column, $post_id)
+    {
+        if ($column === 'product_type') {
+            $product_type = get_post_meta($post_id, '_product_type', true);
+            echo esc_html(ucfirst($product_type ?: 'Pièce détachée'));
+        }
+    }
+
+    public function make_product_type_column_sortable($columns)
+    {
+        $columns['product_type'] = 'product_type';
+        return $columns;
+    }
+
+    public function product_type_orderby($query)
+    {
+        if (!is_admin()) {
+            return;
+        }
+
+        $orderby = $query->get('orderby');
+
+        if ('product_type' === $orderby) {
+            $query->set('meta_key', '_product_type');
+            $query->set('orderby', 'meta_value');
+        }
+    }
+
+    public function add_product_type_field()
+    {
+        global $post;
+
+        // Ajout du sélecteur de type de produit
+        woocommerce_wp_select([
+            'id' => '_product_type',
+            'label' => __('Type de produit', 'text-domain'),
+            'options' => [
+                'piece_detachee' => __('Pièce détachée', 'text-domain'),
+                'car' => __('Voiture', 'text-domain'),
+            ],
+            'value' => get_post_meta($post->ID, '_product_type', true) ?: 'piece_detachee',
+        ]);
+    }
 }
 
 // Initialiser le plugin
@@ -288,20 +251,16 @@ function get_car_attribute_suggestions()
 {
     check_ajax_referer('car_attributes_nonce', 'nonce');
 
-    $taxonomy = sanitize_text_field($_GET['taxonomy']);
+    global $wpdb;
+
+    $attribute = sanitize_text_field($_GET['attribute']);
     $term = sanitize_text_field($_GET['term']);
 
-    $suggestions = array();
-    $terms = get_terms(array(
-        'taxonomy' => $taxonomy,
-        'hide_empty' => false,
-        'search' => $term,
-        'number' => 10
+    $suggestions = $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s",
+        $attribute,
+        '%' . $wpdb->esc_like($term) . '%'
     ));
-
-    foreach ($terms as $term) {
-        $suggestions[] = $term->name;
-    }
 
     wp_send_json($suggestions);
 }
@@ -313,123 +272,48 @@ function get_car_attribute_admin_suggestions()
 {
     check_ajax_referer('car_attributes_admin_nonce', 'nonce');
 
-    $taxonomy = sanitize_text_field($_GET['taxonomy']);
+    global $wpdb;
+
+    $attribute = sanitize_text_field($_GET['attribute']);
     $term = sanitize_text_field($_GET['term']);
 
-    $suggestions = array();
-    $terms = get_terms(array(
-        'taxonomy' => $taxonomy,
-        'hide_empty' => false,
-        'search' => $term,
-        'number' => 10
+    $suggestions = $wpdb->get_col($wpdb->prepare(
+        "SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value LIKE %s",
+        $attribute,
+        '%' . $wpdb->esc_like($term) . '%'
     ));
 
-    foreach ($terms as $term) {
-        $suggestions[] = array(
-            'value' => $term->name,
-            'label' => $term->name
+    $result = array();
+    foreach ($suggestions as $suggestion) {
+        $result[] = array(
+            'value' => $suggestion,
+            'label' => $suggestion
         );
     }
 
-    wp_send_json($suggestions);
+    wp_send_json($result);
 }
 
-add_action('wp_ajax_update_dynamic_filters', 'update_dynamic_filters');
-add_action('wp_ajax_nopriv_update_dynamic_filters', 'update_dynamic_filters');
+// Ajout d'un filtre pour masquer les champs d'attributs de véhicule pour les produits de type "Pièce détachée"
+add_action('admin_footer', 'hide_car_attributes_for_spare_parts');
 
-function update_dynamic_filters()
+function hide_car_attributes_for_spare_parts()
 {
-    $attributes = [
-        'marque',
-        'modele',
-        'annee',
-        'finition',
-        'etat',
-        'carrosserie',
-        'transmission',
-        'moteur',
-        'groupe_motopropulseur',
-        'type_carburant',
-        'couleur_exterieure',
-        'couleur_interieure'
-    ];
-
-    $response = ['attributes' => []];
-
-    // Get current filter values
-    $current_filters = [];
-    foreach ($attributes as $attribute) {
-        if (isset($_GET[$attribute]) && !empty($_GET[$attribute])) {
-            $current_filters[$attribute] = sanitize_text_field($_GET[$attribute]);
-        }
-    }
-
-    // Get filtered product IDs
-    $args = [
-        'post_type' => 'product',
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'tax_query' => [],
-        'meta_query' => []
-    ];
-
-    foreach ($current_filters as $taxonomy => $value) {
-        $args['tax_query'][] = [
-            'taxonomy' => $taxonomy,
-            'field' => 'slug',
-            'terms' => $value,
-        ];
-    }
-
-    if (isset($_GET['min_price']) && isset($_GET['max_price'])) {
-        $args['meta_query'][] = [
-            'key' => '_price',
-            'value' => [intval($_GET['min_price']), intval($_GET['max_price'])],
-            'type' => 'NUMERIC',
-            'compare' => 'BETWEEN'
-        ];
-    }
-
-    $product_ids = get_posts($args);
-
-    // Get available options for each attribute
-    foreach ($attributes as $attribute) {
-        if (!isset($current_filters[$attribute])) {
-            $terms = get_terms([
-                'taxonomy' => $attribute,
-                'hide_empty' => true,
-                'object_ids' => $product_ids,
-            ]);
-
-            $options = [];
-            foreach ($terms as $term) {
-                $options[$term->slug] = $term->name;
+?>
+    <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            function toggleCarAttributes() {
+                var productType = $('#_product_type').val();
+                if (productType === 'piece_detachee') {
+                    $('#car_attributes_data').hide();
+                } else {
+                    $('#car_attributes_data').show();
+                }
             }
 
-            $response['attributes'][$attribute] = $options;
-        }
-    }
-
-    // Get price range
-    $price_range = [
-        'min' => 0,
-        'max' => 0,
-    ];
-
-    if (!empty($product_ids)) {
-        global $wpdb;
-        $price_range = $wpdb->get_row("
-            SELECT MIN(meta_value + 0) as min, MAX(meta_value + 0) as max
-            FROM $wpdb->postmeta
-            WHERE meta_key = '_price'
-            AND post_id IN (" . implode(',', $product_ids) . ")
-        ");
-    }
-
-    $response['price_range'] = [
-        'min' => floor($price_range->min),
-        'max' => ceil($price_range->max),
-    ];
-
-    wp_send_json($response);
+            $('#_product_type').change(toggleCarAttributes);
+            toggleCarAttributes(); // Run on page load
+        });
+    </script>
+<?php
 }
