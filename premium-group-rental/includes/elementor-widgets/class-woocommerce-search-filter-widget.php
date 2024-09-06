@@ -1,6 +1,15 @@
 <?php
 class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
+
 {
+    private $widget_id;
+
+    public function __construct($data = [], $args = null)
+    {
+        parent::__construct($data, $args);
+        $this->widget_id = 'iwsfw_' . uniqid();
+    }
+
     public function get_name()
     {
         return 'improved_woocommerce_search_filter';
@@ -90,8 +99,8 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         $min_price = $this->get_min_product_price();
         $currency_symbol = get_woocommerce_currency_symbol();
 ?>
-        <div class="woocommerce-search-filter-widget">
-            <form action="<?php echo esc_url(home_url('/')); ?>" method="get" id="search-filter-form">
+        <div class="woocommerce-search-filter-widget" id="<?php echo esc_attr($this->widget_id); ?>">
+            <form action="<?php echo esc_url(home_url('/')); ?>" method="get" id="search-filter-form-<?php echo esc_attr($this->widget_id); ?>">
                 <input type="hidden" name="post_type" value="product">
 
                 <?php if ($settings['product_type'] !== 'all'): ?>
@@ -118,7 +127,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                                 $placeholder = $this->get_translated_attribute_label($attribute);
                             ?>
                                 <div class="select-wrapper">
-                                    <select name="<?php echo esc_attr($attribute); ?>" id="<?php echo esc_attr($attribute); ?>" class="dynamic-filter select2-filter" data-placeholder="<?php echo esc_attr($placeholder); ?>">
+                                    <select name="<?php echo esc_attr($attribute); ?>" id="<?php echo esc_attr($attribute . '-' . $this->widget_id); ?>" class="dynamic-filter select2-filter" data-placeholder="<?php echo esc_attr($placeholder); ?>">
                                         <option value=""><?php echo esc_html($placeholder); ?></option>
                                         <?php foreach ($terms as $term): ?>
                                             <option value="<?php echo esc_attr($term->slug); ?>"><?php echo esc_html($term->name); ?></option>
@@ -129,15 +138,15 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                         <?php endforeach; ?>
                     </div>
                     <div class="price-filter">
-                        <label for="price-range-slider"><?php _e('Prix', 'text-domain'); ?></label>
-                        <div id="price-range-slider"></div>
+                        <label for="price-range-slider-<?php echo esc_attr($this->widget_id); ?>"><?php _e('Prix', 'text-domain'); ?></label>
+                        <div id="price-range-slider-<?php echo esc_attr($this->widget_id); ?>"></div>
                         <div class="price-inputs">
                             <div class="price-input-wrapper">
-                                <input type="number" id="min_price" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                                <input type="number" id="min_price-<?php echo esc_attr($this->widget_id); ?>" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
                                 <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
                             </div>
                             <div class="price-input-wrapper">
-                                <input type="number" id="max_price" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                                <input type="number" id="max_price-<?php echo esc_attr($this->widget_id); ?>" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
                                 <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
                             </div>
                         </div>
@@ -150,7 +159,10 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         </div>
         <script>
             jQuery(document).ready(function($) {
-                $('.select2-filter').select2({
+                var widgetId = '<?php echo esc_js($this->widget_id); ?>';
+                var $widget = $('#' + widgetId);
+
+                $widget.find('.select2-filter').select2({
                     width: '100%',
                     placeholder: function() {
                         return $(this).data('placeholder');
@@ -158,7 +170,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                     allowClear: true
                 });
 
-                var priceSlider = document.getElementById('price-range-slider');
+                var priceSlider = document.getElementById('price-range-slider-' + widgetId);
                 var minPrice = <?php echo $min_price; ?>;
                 var maxPrice = <?php echo $max_price; ?>;
 
@@ -179,8 +191,8 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                     }
                 });
 
-                var minPriceInput = document.getElementById('min_price');
-                var maxPriceInput = document.getElementById('max_price');
+                var minPriceInput = document.getElementById('min_price-' + widgetId);
+                var maxPriceInput = document.getElementById('max_price-' + widgetId);
 
                 priceSlider.noUiSlider.on('update', function(values, handle) {
                     var value = values[handle];
@@ -200,13 +212,13 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                 });
 
                 function updateFilters() {
-                    var formData = $('#search-filter-form').serialize();
+                    var formData = $widget.find('#search-filter-form-' + widgetId).serialize();
                     $.ajax({
                         url: '<?php echo admin_url('admin-ajax.php'); ?>',
                         data: formData + '&action=update_dynamic_filters_elementor',
                         success: function(response) {
                             $.each(response, function(attribute, options) {
-                                var select = $('select[name="' + attribute + '"]');
+                                var select = $widget.find('select[name="' + attribute + '"]');
                                 var currentValue = select.val();
                                 var placeholder = select.data('placeholder');
                                 select.empty();
@@ -240,7 +252,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                     });
                 }
 
-                $('.dynamic-filter').change(updateFilters);
+                $widget.find('.dynamic-filter').change(updateFilters);
                 updateFilters();
             });
         </script>
