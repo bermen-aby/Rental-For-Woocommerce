@@ -220,7 +220,12 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                                         text: label
                                     }));
                                 });
-                                select.val(currentValue).trigger('change');
+                                if (options[currentValue]) {
+                                    select.val(currentValue);
+                                } else {
+                                    select.val('');
+                                }
+                                select.trigger('change');
                             });
 
                             if (response.price_range) {
@@ -445,6 +450,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
 }
 
 // Assurez-vous d'ajouter cette fonction en dehors de la classe du widget
+// Modifiez la fonction AJAX pour prendre en compte les filtres sélectionnés
 function update_dynamic_filters_elementor()
 {
     $attributes = [
@@ -463,26 +469,46 @@ function update_dynamic_filters_elementor()
     ];
 
     $response = [];
+    $query_args = [
+        'post_type' => 'product',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'tax_query' => [],
+    ];
 
+    // Ajoutez les filtres sélectionnés à la requête
     foreach ($attributes as $attribute) {
-        $terms = get_terms([
-            'taxonomy' => 'car_' . $attribute,
-            'hide_empty' => true,
-        ]);
-
-        if (!empty($terms) && !is_wp_error($terms)) {
-            $options = [];
-            foreach ($terms as $term) {
-                $options[$term->slug] = $term->name;
-            }
-            $response[$attribute] = $options;
+        if (!empty($_GET[$attribute])) {
+            $query_args['tax_query'][] = [
+                'taxonomy' => 'car_' . $attribute,
+                'field' => 'slug',
+                'terms' => $_GET[$attribute],
+            ];
         }
+    }
+
+    // Exécutez la requête pour obtenir les produits filtrés
+    $products_query = new WP_Query($query_args);
+    $filtered_products = $products_query->posts;
+
+    // Pour chaque attribut, obtenez les termes disponibles pour les produits filtrés
+    foreach ($attributes as $attribute) {
+        $available_terms = [];
+        foreach ($filtered_products as $product) {
+            $terms = get_the_terms($product->ID, 'car_' . $attribute);
+            if ($terms && !is_wp_error($terms)) {
+                foreach ($terms as $term) {
+                    $available_terms[$term->slug] = $term->name;
+                }
+            }
+        }
+        $response[$attribute] = $available_terms;
     }
 
     // Ajoutez la plage de prix
     $response['price_range'] = [
-        'min' => wc_get_min_price_of_filtered_products(),
-        'max' => wc_get_max_price_of_filtered_products(),
+        'min' => wc_get_min_price_of_filtered_products($filtered_products),
+        'max' => wc_get_max_price_of_filtered_products($filtered_products),
     ];
 
     wp_send_json($response);
@@ -491,33 +517,29 @@ add_action('wp_ajax_update_dynamic_filters_elementor', 'update_dynamic_filters_e
 add_action('wp_ajax_nopriv_update_dynamic_filters_elementor', 'update_dynamic_filters_elementor');
 
 // Fonction pour obtenir le prix minimum des produits filtrés
-function wc_get_min_price_of_filtered_products()
+// Mettez à jour ces fonctions pour prendre en compte les produits filtrés
+function wc_get_min_price_of_filtered_products($products)
 {
-    global $wpdb;
-
-    $min_price = $wpdb->get_var("
-        SELECT MIN(meta_value + 0)
-        FROM $wpdb->postmeta
-        WHERE meta_key = '_price'
-        AND post_id IN (SELECT ID FROM $wpdb->posts WHERE post_type = 'product' AND post_status = 'publish')
-    ");
-
-    return $min_price ? floor($min_price) : 0;
+    $min_price = PHP_INT_MAX;
+    foreach ($products as $product) {
+        $price = get_post_meta($product->ID, '_price', true);
+        if ($price && $price < $min_price) {
+            $min_price = $price;
+        }
+    }
+    return $min_price !== PHP_INT_MAX ? floor($min_price) : 0;
 }
 
-// Fonction pour obtenir le prix maximum des produits filtrés
-function wc_get_max_price_of_filtered_products()
+function wc_get_max_price_of_filtered_products($products)
 {
-    global $wpdb;
-
-    $max_price = $wpdb->get_var("
-        SELECT MAX(meta_value + 0)
-        FROM $wpdb->postmeta
-        WHERE meta_key = '_price'
-        AND post_id IN (SELECT ID FROM $wpdb->posts WHERE post_type = 'product' AND post_status = 'publish')
-    ");
-
-    return $max_price ? ceil($max_price) : 1000000;
+    $max_price = 0;
+    foreach ($products as $product) {
+        $price = get_post_meta($product->ID, '_price', true);
+        if ($price && $price > $max_price) {
+            $max_price = $price;
+        }
+    }
+    return $max_price > 0 ? ceil($max_price) : 1000000;
 }
 
 // Enregistrez le widget avec Elementor
