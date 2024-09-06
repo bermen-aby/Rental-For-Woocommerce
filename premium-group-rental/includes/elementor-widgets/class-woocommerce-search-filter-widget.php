@@ -88,6 +88,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         $attributes = $settings['display_attributes'] ? $settings['display_attributes'] : array_keys($this->get_car_attributes());
         $max_price = $this->get_max_product_price();
         $min_price = $this->get_min_product_price();
+        $currency_symbol = get_woocommerce_currency_symbol();
 ?>
         <div class="woocommerce-search-filter-widget">
             <form action="<?php echo esc_url(home_url('/')); ?>" method="get" id="search-filter-form">
@@ -114,13 +115,16 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                                 'hide_empty' => false,
                             ]);
                             if (!empty($terms) && !is_wp_error($terms)):
+                                $placeholder = $this->get_translated_attribute_label($attribute);
                             ?>
-                                <select name="<?php echo esc_attr($attribute); ?>" class="dynamic-filter">
-                                    <option value=""><?php echo esc_html($this->get_translated_attribute_label($attribute)); ?></option>
-                                    <?php foreach ($terms as $term): ?>
-                                        <option value="<?php echo esc_attr($term->slug); ?>"><?php echo esc_html($term->name); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                <div class="select-wrapper">
+                                    <select name="<?php echo esc_attr($attribute); ?>" id="<?php echo esc_attr($attribute); ?>" class="dynamic-filter select2-filter" data-placeholder="<?php echo esc_attr($placeholder); ?>">
+                                        <option value=""><?php echo esc_html($placeholder); ?></option>
+                                        <?php foreach ($terms as $term): ?>
+                                            <option value="<?php echo esc_attr($term->slug); ?>"><?php echo esc_html($term->name); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
                             <?php endif; ?>
                         <?php endforeach; ?>
                     </div>
@@ -128,16 +132,32 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                         <label for="price-range-slider"><?php _e('Prix', 'text-domain'); ?></label>
                         <div id="price-range-slider"></div>
                         <div class="price-inputs">
-                            <input type="number" id="min_price" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
-                            <input type="number" id="max_price" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                            <div class="price-input-wrapper">
+                                <input type="number" id="min_price" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                                <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
+                            </div>
+                            <div class="price-input-wrapper">
+                                <input type="number" id="max_price" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                                <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
+                            </div>
                         </div>
                     </div>
-                    <button type="submit" class="search-button"><?php _e('Rechercher', 'text-domain'); ?></button>
+                    <div class="search-button-container">
+                        <button type="submit" class="search-button"><?php _e('Rechercher', 'text-domain'); ?></button>
+                    </div>
                 </div>
             </form>
         </div>
         <script>
             jQuery(document).ready(function($) {
+                $('.select2-filter').select2({
+                    width: '100%',
+                    placeholder: function() {
+                        return $(this).data('placeholder');
+                    },
+                    allowClear: true
+                });
+
                 var priceSlider = document.getElementById('price-range-slider');
                 var minPrice = <?php echo $min_price; ?>;
                 var maxPrice = <?php echo $max_price; ?>;
@@ -187,10 +207,12 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                         success: function(response) {
                             $.each(response, function(attribute, options) {
                                 var select = $('select[name="' + attribute + '"]');
+                                var currentValue = select.val();
+                                var placeholder = select.data('placeholder');
                                 select.empty();
                                 select.append($('<option>', {
                                     value: '',
-                                    text: select.attr('placeholder')
+                                    text: placeholder
                                 }));
                                 $.each(options, function(value, label) {
                                     select.append($('<option>', {
@@ -198,6 +220,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                                         text: label
                                     }));
                                 });
+                                select.val(currentValue).trigger('change');
                             });
 
                             if (response.price_range) {
@@ -233,31 +256,51 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
 
             .filter-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
                 gap: 10px;
             }
 
             .price-filter {
                 padding: 0 10px;
+                text-align: center;
             }
 
-            select,
-            input[type="number"] {
-                width: 100%;
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                font-size: 14px;
+            .select-wrapper {
+                position: relative;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .select-wrapper label {
+                margin-bottom: 5px;
+                font-weight: bold;
             }
 
             .price-inputs {
                 display: flex;
-                justify-content: space-between;
+                justify-content: center;
                 margin-top: 10px;
             }
 
+            .price-input-wrapper {
+                position: relative;
+                margin: 0 10px;
+            }
+
             .price-inputs input[type="number"] {
-                width: 45%;
+                width: 100px;
+                padding-right: 20px;
+            }
+
+            .currency-symbol {
+                position: absolute;
+                right: 5px;
+                top: 50%;
+                transform: translateY(-50%);
+            }
+
+            .search-button-container {
+                text-align: center;
             }
 
             .search-button {
@@ -268,7 +311,6 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                 border-radius: 4px;
                 cursor: pointer;
                 font-size: 14px;
-                align-self: flex-start;
             }
 
             .search-button:hover {
@@ -288,6 +330,39 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
             .noUi-handle:before,
             .noUi-handle:after {
                 background: #0073aa;
+            }
+
+            #price-range-slider {
+                width: 80%;
+                margin: 0 auto;
+            }
+
+            .select2-container--default .select2-selection--single {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                height: 38px;
+            }
+
+            .select2-container--default .select2-selection--single .select2-selection__rendered {
+                line-height: 38px;
+            }
+
+            .select2-container--default .select2-selection--single .select2-selection__arrow {
+                height: 36px;
+            }
+
+            .select2-container--default .select2-selection--single .select2-selection__placeholder {
+                color: #000;
+            }
+
+            .select2-container--default .select2-search--dropdown .select2-search__field {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+
+            .select2-dropdown {
+                border: 1px solid #ddd;
+                border-radius: 4px;
             }
         </style>
 <?php
@@ -368,3 +443,95 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         return $min_price ? floor($min_price) : 0;
     }
 }
+
+// Assurez-vous d'ajouter cette fonction en dehors de la classe du widget
+function update_dynamic_filters_elementor()
+{
+    $attributes = [
+        'marque',
+        'modele',
+        'annee',
+        'finition',
+        'etat',
+        'carrosserie',
+        'transmission',
+        'moteur',
+        'groupe_motopropulseur',
+        'type_carburant',
+        'couleur_exterieure',
+        'couleur_interieure'
+    ];
+
+    $response = [];
+
+    foreach ($attributes as $attribute) {
+        $terms = get_terms([
+            'taxonomy' => 'car_' . $attribute,
+            'hide_empty' => true,
+        ]);
+
+        if (!empty($terms) && !is_wp_error($terms)) {
+            $options = [];
+            foreach ($terms as $term) {
+                $options[$term->slug] = $term->name;
+            }
+            $response[$attribute] = $options;
+        }
+    }
+
+    // Ajoutez la plage de prix
+    $response['price_range'] = [
+        'min' => wc_get_min_price_of_filtered_products(),
+        'max' => wc_get_max_price_of_filtered_products(),
+    ];
+
+    wp_send_json($response);
+}
+add_action('wp_ajax_update_dynamic_filters_elementor', 'update_dynamic_filters_elementor');
+add_action('wp_ajax_nopriv_update_dynamic_filters_elementor', 'update_dynamic_filters_elementor');
+
+// Fonction pour obtenir le prix minimum des produits filtrés
+function wc_get_min_price_of_filtered_products()
+{
+    global $wpdb;
+
+    $min_price = $wpdb->get_var("
+        SELECT MIN(meta_value + 0)
+        FROM $wpdb->postmeta
+        WHERE meta_key = '_price'
+        AND post_id IN (SELECT ID FROM $wpdb->posts WHERE post_type = 'product' AND post_status = 'publish')
+    ");
+
+    return $min_price ? floor($min_price) : 0;
+}
+
+// Fonction pour obtenir le prix maximum des produits filtrés
+function wc_get_max_price_of_filtered_products()
+{
+    global $wpdb;
+
+    $max_price = $wpdb->get_var("
+        SELECT MAX(meta_value + 0)
+        FROM $wpdb->postmeta
+        WHERE meta_key = '_price'
+        AND post_id IN (SELECT ID FROM $wpdb->posts WHERE post_type = 'product' AND post_status = 'publish')
+    ");
+
+    return $max_price ? ceil($max_price) : 1000000;
+}
+
+// Enregistrez le widget avec Elementor
+function register_improved_woocommerce_search_filter_widget($widgets_manager)
+{
+    require_once(__DIR__ . '/class-woocommerce-search-filter-widget.php');
+    $widgets_manager->register_widget_type(new Improved_WooCommerce_Search_Filter_Widget());
+}
+add_action('elementor/widgets/widgets_registered', 'register_improved_woocommerce_search_filter_widget');
+
+// Assurez-vous d'inclure les scripts et styles nécessaires
+function enqueue_improved_woocommerce_search_filter_scripts()
+{
+    wp_enqueue_script('nouislider', 'https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/14.6.3/nouislider.min.js', array('jquery'), '14.6.3', true);
+    wp_enqueue_style('nouislider', 'https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/14.6.3/nouislider.min.css', array(), '14.6.3');
+}
+add_action('wp_enqueue_scripts', 'enqueue_improved_woocommerce_search_filter_scripts');
