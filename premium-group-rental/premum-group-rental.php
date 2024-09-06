@@ -2,7 +2,7 @@
 /*
 Plugin Name: Premium Group Rental For WooCommerce
 Description: Ajoute la possibilité de louer des produits sur votre boutique WooCommerce
-Version: 1.0
+Version: 1.1
 Author: Bermen
 */
 
@@ -14,6 +14,8 @@ register_activation_hook(__FILE__, 'wc_rental_activate');
 function wc_rental_activate()
 {
     wc_rental_create_table();
+    wc_rental_register_taxonomies();
+    flush_rewrite_rules();
 }
 
 function wc_rental_create_table()
@@ -24,18 +26,40 @@ function wc_rental_create_table()
     $charset_collate = $wpdb->get_charset_collate();
 
     $sql = "CREATE TABLE $table_name (
-id mediumint(9) NOT NULL AUTO_INCREMENT,
-product_id mediumint(9) NOT NULL,
-start_date date NOT NULL,
-end_date date NOT NULL,
-customer_id mediumint(9) NOT NULL,
-PRIMARY KEY (id)
-) $charset_collate;";
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        product_id mediumint(9) NOT NULL,
+        start_date date NOT NULL,
+        end_date date NOT NULL,
+        customer_id mediumint(9) NOT NULL,
+        PRIMARY KEY (id)
+    ) $charset_collate;";
 
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
 }
 
+function wc_rental_register_taxonomies()
+{
+    register_taxonomy(
+        'rental_option',
+        'product',
+        array(
+            'label' => __('Option de location/vente', 'wc-rental'),
+            'hierarchical' => false,
+            'show_ui' => true,
+            'show_admin_column' => true,
+            'query_var' => true,
+            'rewrite' => array('slug' => 'rental-option'),
+        )
+    );
+
+    // Ajout des termes par défaut
+    wp_insert_term('Vente uniquement', 'rental_option', array('slug' => 'sale'));
+    wp_insert_term('Location uniquement', 'rental_option', array('slug' => 'rental'));
+    wp_insert_term('Location et vente', 'rental_option', array('slug' => 'both'));
+}
+
+add_action('init', 'wc_rental_register_taxonomies');
 
 // Onglet "Rental"
 add_action('woocommerce_product_options_general_product_data', 'wc_rental_product_options');
@@ -46,20 +70,26 @@ function wc_rental_product_options()
     echo '<div class="options_group rental-options">';
 
     // Option de location/vente
+    $rental_options = get_terms(array(
+        'taxonomy' => 'rental_option',
+        'hide_empty' => false,
+    ));
+
+    $options = array();
+    foreach ($rental_options as $option) {
+        $options[$option->slug] = $option->name;
+    }
+
     woocommerce_wp_select(
         array(
-            'id' => '_rental_option',
+            'id' => 'rental_option',
             'label' => __('Option de location/vente', 'wc-rental'),
-            'options' => array(
-                'sale' => __('Vente uniquement', 'wc-rental'),
-                'rental' => __('Location uniquement', 'wc-rental'),
-                'both' => __('Location et vente', 'wc-rental')
-            ),
-            'default' => 'sale'
+            'options' => $options,
+            'value' => wc_rental_get_product_rental_option($post->ID),
         )
     );
 
-    // Description de location
+    // Les autres champs restent inchangés
     woocommerce_wp_textarea_input(
         array(
             'id' => '_rental_description',
@@ -69,7 +99,6 @@ function wc_rental_product_options()
         )
     );
 
-    // Prix par jour
     woocommerce_wp_text_input(
         array(
             'id' => '_rental_price_day',
@@ -83,7 +112,6 @@ function wc_rental_product_options()
         )
     );
 
-    // Prix par semaine
     woocommerce_wp_text_input(
         array(
             'id' => '_rental_price_week',
@@ -97,7 +125,6 @@ function wc_rental_product_options()
         )
     );
 
-    // Prix par mois
     woocommerce_wp_text_input(
         array(
             'id' => '_rental_price_month',
@@ -118,11 +145,23 @@ function wc_rental_product_options()
 add_action('woocommerce_process_product_meta', 'wc_rental_product_save');
 function wc_rental_product_save($post_id)
 {
-    update_post_meta($post_id, '_rental_option', $_POST['_rental_option']);
+    if (isset($_POST['rental_option'])) {
+        wp_set_object_terms($post_id, $_POST['rental_option'], 'rental_option');
+    }
+
     update_post_meta($post_id, '_rental_description', wpautop(wptexturize($_POST['_rental_description'])));
     update_post_meta($post_id, '_rental_price_day', $_POST['_rental_price_day']);
     update_post_meta($post_id, '_rental_price_week', $_POST['_rental_price_week']);
     update_post_meta($post_id, '_rental_price_month', $_POST['_rental_price_month']);
+}
+
+function wc_rental_get_product_rental_option($product_id)
+{
+    $terms = get_the_terms($product_id, 'rental_option');
+    if ($terms && !is_wp_error($terms)) {
+        return $terms[0]->slug;
+    }
+    return 'sale'; // Default to 'sale' if no option is set
 }
 
 // Ajout de la section de location sur la page produit
@@ -131,7 +170,7 @@ function wc_rental_product_section()
 {
     global $product;
 
-    $rental_option = get_post_meta($product->get_id(), '_rental_option', true);
+    $rental_option = wc_rental_get_product_rental_option($product->get_id());
     if ($rental_option != 'sale') {
         include('templates/rental-display.php');
     }

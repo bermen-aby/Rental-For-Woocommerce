@@ -8,7 +8,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
 
     public function get_title()
     {
-        return __('Recherche & Filtrage WooCommerce Amélioré', 'text-domain');
+        return __('Filtres Vente/Location - WooCommerce', 'text-domain');
     }
 
     public function get_icon()
@@ -39,8 +39,22 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                 'default' => 'all',
                 'options' => [
                     'all' => __('Tous', 'text-domain'),
-                    'sale' => __('À vendre', 'text-domain'),
-                    'rental' => __('À louer', 'text-domain'),
+                    'car' => __('Voiture', 'text-domain'),
+                    'piece_detachee' => __('Pièce détachée', 'text-domain'),
+                ],
+            ]
+        );
+
+        $this->add_control(
+            'sale_rental_type',
+            [
+                'label' => __('Vente/Location', 'text-domain'),
+                'type' => \Elementor\Controls_Manager::SELECT,
+                'default' => 'all',
+                'options' => [
+                    'all' => __('Tous', 'text-domain'),
+                    'sale' => __('Vente', 'text-domain'),
+                    'rental' => __('Location', 'text-domain'),
                 ],
             ]
         );
@@ -55,14 +69,25 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
             ]
         );
 
+        $this->add_control(
+            'display_attributes',
+            [
+                'label' => __('Attributs à afficher', 'text-domain'),
+                'type' => \Elementor\Controls_Manager::SELECT2,
+                'options' => $this->get_car_attributes(),
+                'multiple' => true,
+            ]
+        );
+
         $this->end_controls_section();
     }
 
     protected function render()
     {
         $settings = $this->get_settings_for_display();
-        $attributes = $this->get_car_attributes();
+        $attributes = $settings['display_attributes'] ? $settings['display_attributes'] : array_keys($this->get_car_attributes());
         $max_price = $this->get_max_product_price();
+        $min_price = $this->get_min_product_price();
 ?>
         <div class="woocommerce-search-filter-widget">
             <form action="<?php echo esc_url(home_url('/')); ?>" method="get" id="search-filter-form">
@@ -72,6 +97,10 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                     <input type="hidden" name="product_type" value="<?php echo esc_attr($settings['product_type']); ?>">
                 <?php endif; ?>
 
+                <?php if ($settings['sale_rental_type'] !== 'all'): ?>
+                    <input type="hidden" name="sale_rental_type" value="<?php echo esc_attr($settings['sale_rental_type']); ?>">
+                <?php endif; ?>
+
                 <?php if (!empty($settings['product_categories'])): ?>
                     <input type="hidden" name="product_cat" value="<?php echo esc_attr(implode(',', $settings['product_categories'])); ?>">
                 <?php endif; ?>
@@ -79,15 +108,29 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                 <div class="filter-container">
                     <div class="filter-grid">
                         <?php foreach ($attributes as $attribute): ?>
-                            <select name="<?php echo esc_attr($attribute); ?>" class="dynamic-filter">
-                                <option value=""><?php echo esc_html(ucfirst($attribute)); ?></option>
-                            </select>
+                            <?php
+                            $terms = get_terms([
+                                'taxonomy' => 'car_' . $attribute,
+                                'hide_empty' => false,
+                            ]);
+                            if (!empty($terms) && !is_wp_error($terms)):
+                            ?>
+                                <select name="<?php echo esc_attr($attribute); ?>" class="dynamic-filter">
+                                    <option value=""><?php echo esc_html($this->get_translated_attribute_label($attribute)); ?></option>
+                                    <?php foreach ($terms as $term): ?>
+                                        <option value="<?php echo esc_attr($term->slug); ?>"><?php echo esc_html($term->name); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     </div>
                     <div class="price-filter">
+                        <label for="price-range-slider"><?php _e('Prix', 'text-domain'); ?></label>
                         <div id="price-range-slider"></div>
-                        <input type="hidden" name="min_price" id="min_price" value="0">
-                        <input type="hidden" name="max_price" id="max_price" value="<?php echo esc_attr($max_price); ?>">
+                        <div class="price-inputs">
+                            <input type="number" id="min_price" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                            <input type="number" id="max_price" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                        </div>
                     </div>
                     <button type="submit" class="search-button"><?php _e('Rechercher', 'text-domain'); ?></button>
                 </div>
@@ -96,20 +139,44 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         <script>
             jQuery(document).ready(function($) {
                 var priceSlider = document.getElementById('price-range-slider');
+                var minPrice = <?php echo $min_price; ?>;
                 var maxPrice = <?php echo $max_price; ?>;
 
                 noUiSlider.create(priceSlider, {
-                    start: [0, maxPrice],
+                    start: [minPrice, maxPrice],
                     connect: true,
                     range: {
-                        'min': 0,
+                        'min': minPrice,
                         'max': maxPrice
+                    },
+                    format: {
+                        to: function(value) {
+                            return Math.round(value);
+                        },
+                        from: function(value) {
+                            return value;
+                        }
                     }
                 });
 
+                var minPriceInput = document.getElementById('min_price');
+                var maxPriceInput = document.getElementById('max_price');
+
                 priceSlider.noUiSlider.on('update', function(values, handle) {
-                    $('#min_price').val(Math.round(values[0]));
-                    $('#max_price').val(Math.round(values[1]));
+                    var value = values[handle];
+                    if (handle) {
+                        maxPriceInput.value = value;
+                    } else {
+                        minPriceInput.value = value;
+                    }
+                });
+
+                minPriceInput.addEventListener('change', function() {
+                    priceSlider.noUiSlider.set([this.value, null]);
+                });
+
+                maxPriceInput.addEventListener('change', function() {
+                    priceSlider.noUiSlider.set([null, this.value]);
                 });
 
                 function updateFilters() {
@@ -123,7 +190,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                                 select.empty();
                                 select.append($('<option>', {
                                     value: '',
-                                    text: ucfirst(attribute)
+                                    text: select.attr('placeholder')
                                 }));
                                 $.each(options, function(value, label) {
                                     select.append($('<option>', {
@@ -133,7 +200,6 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                                 });
                             });
 
-                            // Update price slider
                             if (response.price_range) {
                                 priceSlider.noUiSlider.updateOptions({
                                     range: {
@@ -147,30 +213,27 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                 }
 
                 $('.dynamic-filter').change(updateFilters);
-                updateFilters(); // Initial update
-
-                function ucfirst(string) {
-                    return string.charAt(0).toUpperCase() + string.slice(1);
-                }
+                updateFilters();
             });
         </script>
         <style>
             .woocommerce-search-filter-widget {
-                background-color: #fff;
+                background-color: #f8f8f8;
                 border: 1px solid #ddd;
                 border-radius: 4px;
-                padding: 20px;
+                padding: 15px;
+                font-size: 14px;
             }
 
             .filter-container {
                 display: flex;
                 flex-direction: column;
-                gap: 20px;
+                gap: 15px;
             }
 
             .filter-grid {
                 display: grid;
-                grid-template-columns: repeat(3, 1fr);
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
                 gap: 10px;
             }
 
@@ -178,11 +241,23 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                 padding: 0 10px;
             }
 
-            select {
+            select,
+            input[type="number"] {
                 width: 100%;
                 padding: 8px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
+                font-size: 14px;
+            }
+
+            .price-inputs {
+                display: flex;
+                justify-content: space-between;
+                margin-top: 10px;
+            }
+
+            .price-inputs input[type="number"] {
+                width: 45%;
             }
 
             .search-button {
@@ -192,14 +267,50 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                 border: none;
                 border-radius: 4px;
                 cursor: pointer;
-                align-self: flex-end;
+                font-size: 14px;
+                align-self: flex-start;
             }
 
             .search-button:hover {
                 background-color: #005177;
             }
+
+            .noUi-connect {
+                background: #0073aa;
+            }
+
+            .noUi-handle {
+                border: 1px solid #0073aa;
+                background: #fff;
+                cursor: pointer;
+            }
+
+            .noUi-handle:before,
+            .noUi-handle:after {
+                background: #0073aa;
+            }
         </style>
 <?php
+    }
+
+    private function get_translated_attribute_label($attribute)
+    {
+        $labels = [
+            'marque' => __('Marque', 'text-domain'),
+            'modele' => __('Modèle', 'text-domain'),
+            'annee' => __('Année', 'text-domain'),
+            'etat' => __('État', 'text-domain'),
+            'finition' => __('Finition', 'text-domain'),
+            'carrosserie' => __('Carrosserie', 'text-domain'),
+            'transmission' => __('Transmission', 'text-domain'),
+            'moteur' => __('Moteur', 'text-domain'),
+            'groupe_motopropulseur' => __('Groupe motopropulseur', 'text-domain'),
+            'type_carburant' => __('Type de carburant', 'text-domain'),
+            'couleur_exterieure' => __('Couleur extérieure', 'text-domain'),
+            'couleur_interieure' => __('Couleur intérieure', 'text-domain'),
+        ];
+
+        return isset($labels[$attribute]) ? $labels[$attribute] : ucfirst(str_replace('_', ' ', $attribute));
     }
 
     private function get_product_categories()
@@ -220,18 +331,18 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
     private function get_car_attributes()
     {
         return [
-            'marque',
-            'modele',
-            'annee',
-            'finition',
-            'etat',
-            'carrosserie',
-            'transmission',
-            'moteur',
-            'groupe_motopropulseur',
-            'type_carburant',
-            'couleur_exterieure',
-            'couleur_interieure'
+            'marque' => __('Marque', 'text-domain'),
+            'modele' => __('Modèle', 'text-domain'),
+            'annee' => __('Année', 'text-domain'),
+            'finition' => __('Finition', 'text-domain'),
+            'etat' => __('État', 'text-domain'),
+            'carrosserie' => __('Carrosserie', 'text-domain'),
+            'transmission' => __('Transmission', 'text-domain'),
+            'moteur' => __('Moteur', 'text-domain'),
+            'groupe_motopropulseur' => __('Groupe motopropulseur', 'text-domain'),
+            'type_carburant' => __('Type de carburant', 'text-domain'),
+            'couleur_exterieure' => __('Couleur extérieure', 'text-domain'),
+            'couleur_interieure' => __('Couleur intérieure', 'text-domain')
         ];
     }
 
@@ -243,95 +354,17 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
             FROM $wpdb->postmeta
             WHERE meta_key = '_price'
         ");
-        return $max_price ? ceil($max_price) : 1000000; // Fallback to 1,000,000 if no products found
-    }
-}
-
-// Add this function to your theme's functions.php or in a separate plugin file
-add_action('wp_ajax_update_dynamic_filters_elementor', 'update_dynamic_filters_elementor');
-add_action('wp_ajax_nopriv_update_dynamic_filters_elementor', 'update_dynamic_filters_elementor');
-
-function update_dynamic_filters_elementor()
-{
-    $attributes = [
-        'marque',
-        'modele',
-        'annee',
-        'finition',
-        'etat',
-        'carrosserie',
-        'transmission',
-        'moteur',
-        'groupe_motopropulseur',
-        'type_carburant',
-        'couleur_exterieure',
-        'couleur_interieure'
-    ];
-
-    $response = [];
-
-    // Get current filter values
-    $current_filters = [];
-    foreach ($attributes as $attribute) {
-        if (isset($_GET[$attribute])) {
-            $current_filters[$attribute] = sanitize_text_field($_GET[$attribute]);
-        }
+        return $max_price ? ceil($max_price) : 1000000;
     }
 
-    // Get filtered product IDs
-    $args = [
-        'post_type' => 'product',
-        'posts_per_page' => -1,
-        'fields' => 'ids',
-        'tax_query' => [],
-    ];
-
-    foreach ($current_filters as $taxonomy => $value) {
-        $args['tax_query'][] = [
-            'taxonomy' => $taxonomy,
-            'field' => 'slug',
-            'terms' => $value,
-        ];
-    }
-
-    $product_ids = get_posts($args);
-
-    // Get available options for each attribute
-    foreach ($attributes as $attribute) {
-        $terms = get_terms([
-            'taxonomy' => $attribute,
-            'hide_empty' => true,
-            'object_ids' => $product_ids,
-        ]);
-
-        $options = [];
-        foreach ($terms as $term) {
-            $options[$term->slug] = $term->name;
-        }
-
-        $response[$attribute] = $options;
-    }
-
-    // Get price range
-    $price_range = [
-        'min' => 0,
-        'max' => 0,
-    ];
-
-    if (!empty($product_ids)) {
+    private function get_min_product_price()
+    {
         global $wpdb;
-        $price_range = $wpdb->get_row("
-            SELECT MIN(meta_value + 0) as min, MAX(meta_value + 0) as max
+        $min_price = $wpdb->get_var("
+            SELECT MIN(meta_value + 0)
             FROM $wpdb->postmeta
             WHERE meta_key = '_price'
-            AND post_id IN (" . implode(',', $product_ids) . ")
         ");
+        return $min_price ? floor($min_price) : 0;
     }
-
-    $response['price_range'] = [
-        'min' => floor($price_range->min),
-        'max' => ceil($price_range->max),
-    ];
-
-    wp_send_json($response);
 }
