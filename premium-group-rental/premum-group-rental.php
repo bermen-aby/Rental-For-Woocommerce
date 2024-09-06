@@ -8,6 +8,7 @@ Author: Bermen
 
 // Inclure le plugin Cars Manager
 require_once plugin_dir_path(__FILE__) . 'premium-group-cars-manager.php';
+require_once plugin_dir_path(__FILE__) . 'premium-group-spare-parts-manager.php';
 
 register_activation_hook(__FILE__, 'wc_rental_activate');
 
@@ -37,6 +38,34 @@ function wc_rental_create_table()
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql);
 }
+
+function create_quotations_table()
+{
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'quotations';
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $sql = "CREATE TABLE $table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        time datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+        name tinytext NOT NULL,
+        email varchar(100) NOT NULL,
+        nom_piece text NOT NULL,
+        numero_chassis text,
+        marque text,
+        modele text,
+        sous_modele text,
+        generation text,
+        annee text,
+        autres_informations text,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+
+register_activation_hook(__FILE__, 'create_quotations_table');
 
 function wc_rental_register_taxonomies()
 {
@@ -307,3 +336,70 @@ function pgr_register_elementor_widgets()
     }
 }
 add_action('init', 'pgr_register_elementor_widgets');
+
+function handle_quotation_submission()
+{
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['quotation_submit'])) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'quotations';
+
+        $wpdb->insert(
+            $table_name,
+            array(
+                'time' => current_time('mysql'),
+                'name' => sanitize_text_field($_POST['name']),
+                'email' => sanitize_email($_POST['email']),
+                'nom_piece' => sanitize_text_field($_POST['nom_piece']),
+                'numero_chassis' => sanitize_text_field($_POST['numero_chassis']),
+                'marque' => sanitize_text_field($_POST['marque']),
+                'modele' => sanitize_text_field($_POST['modele']),
+                'sous_modele' => sanitize_text_field($_POST['sous_modele']),
+                'generation' => sanitize_text_field($_POST['generation']),
+                'annee' => sanitize_text_field($_POST['annee']),
+                'autres_informations' => sanitize_textarea_field($_POST['autres_informations']),
+            )
+        );
+
+        // Rediriger ou afficher un message de confirmation
+    }
+}
+
+add_action('init', 'handle_quotation_submission');
+
+function add_quotations_menu()
+{
+    add_menu_page(
+        'Cotations',
+        'Cotations',
+        'manage_options',
+        'quotations',
+        'display_quotations_page',
+        'dashicons-list-view',
+        6
+    );
+}
+add_action('admin_menu', 'add_quotations_menu');
+
+function display_quotations_page()
+{
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'quotations';
+    $quotations = $wpdb->get_results("SELECT * FROM $table_name ORDER BY time DESC");
+
+    echo '<div class="wrap">';
+    echo '<h1>Cotations</h1>';
+    echo '<table class="widefat">';
+    echo '<thead><tr><th>Date</th><th>Nom</th><th>Email</th><th>Pièce</th><th>Actions</th></tr></thead>';
+    echo '<tbody>';
+    foreach ($quotations as $quotation) {
+        echo '<tr>';
+        echo '<td>' . esc_html($quotation->time) . '</td>';
+        echo '<td>' . esc_html($quotation->name) . '</td>';
+        echo '<td>' . esc_html($quotation->email) . '</td>';
+        echo '<td>' . esc_html($quotation->nom_piece) . '</td>';
+        echo '<td><a href="#">Voir détails</a></td>';
+        echo '</tr>';
+    }
+    echo '</tbody></table>';
+    echo '</div>';
+}

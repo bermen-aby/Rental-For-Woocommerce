@@ -32,6 +32,18 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         );
 
         $this->add_control(
+            'enable_quotation',
+            [
+                'label' => __('Activer la cotation', 'text-domain'),
+                'type' => \Elementor\Controls_Manager::SWITCHER,
+                'label_on' => __('Oui', 'text-domain'),
+                'label_off' => __('Non', 'text-domain'),
+                'return_value' => 'yes',
+                'default' => 'no',
+            ]
+        );
+
+        $this->add_control(
             'product_type',
             [
                 'label' => __('Type de produit', 'text-domain'),
@@ -89,67 +101,46 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         $max_price = $this->get_max_product_price();
         $min_price = $this->get_min_product_price();
         $currency_symbol = get_woocommerce_currency_symbol();
+
 ?>
-        <div class="woocommerce-search-filter-widget">
-            <form action="<?php echo esc_url(home_url('/')); ?>" method="get" id="search-filter-form">
-                <input type="hidden" name="post_type" value="product">
-
-                <?php if ($settings['product_type'] !== 'all'): ?>
-                    <input type="hidden" name="product_type" value="<?php echo esc_attr($settings['product_type']); ?>">
-                <?php endif; ?>
-
-                <?php if ($settings['sale_rental_type'] !== 'all'): ?>
-                    <input type="hidden" name="sale_rental_type" value="<?php echo esc_attr($settings['sale_rental_type']); ?>">
-                <?php endif; ?>
-
-                <?php if (!empty($settings['product_categories'])): ?>
-                    <input type="hidden" name="product_cat" value="<?php echo esc_attr(implode(',', $settings['product_categories'])); ?>">
-                <?php endif; ?>
-
-                <div class="filter-container">
-                    <div class="filter-grid">
-                        <?php foreach ($attributes as $attribute): ?>
-                            <?php
-                            $terms = get_terms([
-                                'taxonomy' => 'car_' . $attribute,
-                                'hide_empty' => false,
-                            ]);
-                            if (!empty($terms) && !is_wp_error($terms)):
-                                $placeholder = $this->get_translated_attribute_label($attribute);
-                            ?>
-                                <div class="select-wrapper">
-                                    <select name="<?php echo esc_attr($attribute); ?>" id="<?php echo esc_attr($attribute); ?>" class="dynamic-filter select2-filter" data-placeholder="<?php echo esc_attr($placeholder); ?>">
-                                        <option value=""><?php echo esc_html($placeholder); ?></option>
-                                        <?php foreach ($terms as $term): ?>
-                                            <option value="<?php echo esc_attr($term->slug); ?>"><?php echo esc_html($term->name); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                            <?php endif; ?>
-                        <?php endforeach; ?>
-                    </div>
-                    <div class="price-filter">
-                        <label for="price-range-slider"><?php _e('Prix', 'text-domain'); ?></label>
-                        <div id="price-range-slider"></div>
-                        <div class="price-inputs">
-                            <div class="price-input-wrapper">
-                                <input type="number" id="min_price" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
-                                <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
-                            </div>
-                            <div class="price-input-wrapper">
-                                <input type="number" id="max_price" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
-                                <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="search-button-container">
-                        <button type="submit" class="search-button"><?php _e('Rechercher', 'text-domain'); ?></button>
-                    </div>
-                </div>
-            </form>
+        <div class="woocommerce-search-filter-widget" id="woocommerce-search-filter-widget">
+            <?php if ($settings['enable_quotation'] === 'yes'): ?>
+                <?php $this->render_quotation_form($attributes); ?>
+            <?php else: ?>
+                <?php $this->render_search_form($attributes, $max_price, $min_price, $currency_symbol); ?>
+            <?php endif; ?>
         </div>
         <script>
             jQuery(document).ready(function($) {
+
+                var widget = $('#woocommerce-search-filter-widget');
+                var isQuotation = <?php echo $settings['enable_quotation'] === 'yes' ? 'true' : 'false'; ?>;
+
+                function toggleFormFields() {
+                    if (isQuotation) {
+                        widget.find('.price-filter, .search-button').hide();
+                        widget.find('.quotation-fields').show();
+                        widget.find('select').each(function() {
+                            var select = $(this);
+                            var input = $('<input type="text" name="' + select.attr('name') + '" id="' + select.attr('id') + '" class="quotation-input" placeholder="' + select.data('placeholder') + '">');
+                            select.replaceWith(input);
+                        });
+                        widget.find('button[type="submit"]').text('<?php _e('Envoyer', 'text-domain'); ?>');
+                    } else {
+                        widget.find('.price-filter, .search-button').show();
+                        widget.find('.quotation-fields').hide();
+                        widget.find('.quotation-input').each(function() {
+                            var input = $(this);
+                            var select = $('<select name="' + input.attr('name') + '" id="' + input.attr('id') + '" class="dynamic-filter select2-filter" data-placeholder="' + input.attr('placeholder') + '"></select>');
+                            input.replaceWith(select);
+                        });
+                        widget.find('button[type="submit"]').text('<?php _e('Rechercher', 'text-domain'); ?>');
+                        // Réinitialiser les select2 et autres plugins JS si nécessaire
+                    }
+                }
+
+                toggleFormFields();
+
                 $('.select2-filter').select2({
                     width: '100%',
                     placeholder: function() {
@@ -159,8 +150,8 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                 });
 
                 var priceSlider = document.getElementById('price-range-slider');
-                var minPrice = <?php echo $min_price; ?>;
-                var maxPrice = <?php echo $max_price; ?>;
+                var minPrice = parseInt($('#min_price').val());
+                var maxPrice = parseInt($('#max_price').val());
 
                 noUiSlider.create(priceSlider, {
                     start: [minPrice, maxPrice],
@@ -199,10 +190,16 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                     priceSlider.noUiSlider.set([null, this.value]);
                 });
 
+                var xhr;
+
                 function updateFilters() {
+                    if (xhr && xhr.readyState != 4) {
+                        xhr.abort();
+                    }
+
                     var formData = $('#search-filter-form').serialize();
-                    $.ajax({
-                        url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                    xhr = $.ajax({
+                        url: car_attributes.ajax_url,
                         data: formData + '&action=update_dynamic_filters_elementor',
                         success: function(response) {
                             $.each(response, function(attribute, options) {
@@ -220,12 +217,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                                         text: label
                                     }));
                                 });
-                                if (options[currentValue]) {
-                                    select.val(currentValue);
-                                } else {
-                                    select.val('');
-                                }
-                                select.trigger('change');
+                                select.val(currentValue).trigger('change.select2');
                             });
 
                             if (response.price_range) {
@@ -240,7 +232,15 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                     });
                 }
 
-                $('.dynamic-filter').change(updateFilters);
+                $('.dynamic-filter').on('change', function() {
+                    updateFilters();
+                });
+
+                priceSlider.noUiSlider.on('change', function() {
+                    updateFilters();
+                });
+
+                // Initial update
                 updateFilters();
             });
         </script>
@@ -370,6 +370,105 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                 border-radius: 4px;
             }
         </style>
+    <?php
+    }
+
+    protected function render_quotation_form($attributes)
+    {
+    ?>
+        <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post" id="quotation-form">
+            <input type="hidden" name="action" value="submit_quotation">
+            <?php wp_nonce_field('submit_quotation', 'quotation_nonce'); ?>
+
+            <div class="quotation-fields">
+                <div class="form-row">
+                    <label for="quotation_name"><?php _e('Nom', 'text-domain'); ?></label>
+                    <input type="text" name="name" id="quotation_name" required>
+                </div>
+                <div class="form-row">
+                    <label for="quotation_email"><?php _e('Email', 'text-domain'); ?></label>
+                    <input type="email" name="email" id="quotation_email" required>
+                </div>
+            </div>
+
+            <div class="filter-grid">
+                <?php foreach ($attributes as $attribute): ?>
+                    <?php $placeholder = $this->get_translated_attribute_label($attribute); ?>
+                    <div class="form-row">
+                        <label for="<?php echo esc_attr($attribute); ?>"><?php echo esc_html($placeholder); ?></label>
+                        <input type="text" name="<?php echo esc_attr($attribute); ?>" id="<?php echo esc_attr($attribute); ?>" class="quotation-input" placeholder="<?php echo esc_attr($placeholder); ?>">
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <div class="form-row">
+                <label for="autres_informations"><?php _e('Autres informations', 'text-domain'); ?></label>
+                <textarea name="autres_informations" id="autres_informations"></textarea>
+            </div>
+
+            <div class="search-button-container">
+                <button type="submit" class="search-button"><?php _e('Envoyer', 'text-domain'); ?></button>
+            </div>
+        </form>
+    <?php
+    }
+
+    protected function render_search_form($attributes, $max_price, $min_price, $currency_symbol)
+    {
+    ?>
+        <form action="<?php echo esc_url(home_url('/')); ?>" method="get" id="search-filter-form">
+            <input type="hidden" name="post_type" value="product">
+
+            <?php if ($this->get_settings('product_type') !== 'all'): ?>
+                <input type="hidden" name="product_type" value="<?php echo esc_attr($this->get_settings('product_type')); ?>">
+            <?php endif; ?>
+
+            <?php if ($this->get_settings('sale_rental_type') !== 'all'): ?>
+                <input type="hidden" name="sale_rental_type" value="<?php echo esc_attr($this->get_settings('sale_rental_type')); ?>">
+            <?php endif; ?>
+
+            <?php if (!empty($this->get_settings('product_categories'))): ?>
+                <input type="hidden" name="product_cat" value="<?php echo esc_attr(implode(',', $this->get_settings('product_categories'))); ?>">
+            <?php endif; ?>
+
+            <div class="filter-container">
+                <div class="filter-grid">
+                    <?php foreach ($attributes as $attribute): ?>
+                        <?php $placeholder = $this->get_translated_attribute_label($attribute); ?>
+                        <div class="select-wrapper">
+                            <select name="<?php echo esc_attr($attribute); ?>" id="<?php echo esc_attr($attribute); ?>" class="dynamic-filter select2-filter" data-placeholder="<?php echo esc_attr($placeholder); ?>">
+                                <option value=""><?php echo esc_html($placeholder); ?></option>
+                                <?php
+                                $terms = get_terms([
+                                    'taxonomy' => 'pa_' . $attribute,
+                                    'hide_empty' => false,
+                                ]);
+                                foreach ($terms as $term): ?>
+                                    <option value="<?php echo esc_attr($term->slug); ?>"><?php echo esc_html($term->name); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <div class="price-filter">
+                    <label for="price-range-slider"><?php _e('Prix', 'text-domain'); ?></label>
+                    <div id="price-range-slider"></div>
+                    <div class="price-inputs">
+                        <div class="price-input-wrapper">
+                            <input type="number" id="min_price" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                            <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
+                        </div>
+                        <div class="price-input-wrapper">
+                            <input type="number" id="max_price" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                            <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="search-button-container">
+                    <button type="submit" class="search-button"><?php _e('Rechercher', 'text-domain'); ?></button>
+                </div>
+            </div>
+        </form>
 <?php
     }
 
@@ -391,6 +490,30 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         ];
 
         return isset($labels[$attribute]) ? $labels[$attribute] : ucfirst(str_replace('_', ' ', $attribute));
+    }
+
+    private function get_attribute_combinations($attributes)
+    {
+        global $wpdb;
+        $combinations = [];
+
+        foreach ($attributes as $attribute) {
+            $taxonomy = 'car_' . $attribute;
+            $query = $wpdb->prepare(
+                "SELECT t.slug, t.name
+                FROM {$wpdb->terms} AS t
+                INNER JOIN {$wpdb->term_taxonomy} AS tt ON t.term_id = tt.term_id
+                INNER JOIN {$wpdb->term_relationships} AS tr ON tr.term_taxonomy_id = tt.term_taxonomy_id
+                INNER JOIN {$wpdb->posts} AS p ON p.ID = tr.object_id
+                WHERE tt.taxonomy = %s AND p.post_type = 'product' AND p.post_status = 'publish'
+                GROUP BY t.term_id
+                ORDER BY t.name ASC",
+                $taxonomy
+            );
+            $combinations[$attribute] = $wpdb->get_results($query, ARRAY_A);
+        }
+
+        return $combinations;
     }
 
     private function get_product_categories()
@@ -485,6 +608,16 @@ function update_dynamic_filters_elementor()
                 'terms' => $_GET[$attribute],
             ];
         }
+    }
+
+    // Ajoutez le filtre de prix
+    if (!empty($_GET['min_price']) && !empty($_GET['max_price'])) {
+        $query_args['meta_query'][] = [
+            'key' => '_price',
+            'value' => [floatval($_GET['min_price']), floatval($_GET['max_price'])],
+            'type' => 'NUMERIC',
+            'compare' => 'BETWEEN',
+        ];
     }
 
     // Exécutez la requête pour obtenir les produits filtrés
