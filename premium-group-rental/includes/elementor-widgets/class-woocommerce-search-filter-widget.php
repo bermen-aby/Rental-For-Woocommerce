@@ -119,69 +119,107 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
     protected function render()
     {
         $settings = $this->get_settings_for_display();
+
+        // Vérification que $settings est bien un tableau
+        if (!is_array($settings)) {
+            $settings = array();
+        }
+
+        // Définition des valeurs par défaut pour les paramètres importants
+        $default_settings = array(
+            'enable_quotation' => 'no',
+            'product_type' => 'all',
+            'sale_rental_type' => 'all',
+            'product_categories' => array(),
+            'display_attributes' => array(),
+            'spare_part_attributes' => array(),
+        );
+
+        // Fusion des paramètres par défaut avec les paramètres existants
+        $settings = array_merge($default_settings, $settings);
+
+        $enable_quotation = $settings['enable_quotation'] === 'yes';
         $attributes = $settings['product_type'] === 'piece_detachee'
             ? ($settings['spare_part_attributes'] ?: array_keys($this->get_spare_part_attributes()))
             : ($settings['display_attributes'] ?: array_keys($this->get_car_attributes()));
-        $max_price = $this->get_max_product_price();
-        $min_price = $this->get_min_product_price();
+
+        if ($enable_quotation) {
+            $max_price = $min_price = 0;
+        } else {
+            $max_price = $this->get_max_product_price();
+            $min_price = $this->get_min_product_price();
+        }
         $currency_symbol = get_woocommerce_currency_symbol();
 ?>
         <div class="woocommerce-search-filter-widget" id="<?php echo esc_attr($this->widget_id); ?>">
-            <form action="<?php echo esc_url(home_url('/')); ?>" method="get" id="search-filter-form-<?php echo esc_attr($this->widget_id); ?>">
-                <input type="hidden" name="post_type" value="product">
-
-                <?php if ($settings['product_type'] !== 'all'): ?>
-                    <input type="hidden" name="product_type" value="<?php echo esc_attr($settings['product_type']); ?>">
-                <?php endif; ?>
-
-                <?php if ($settings['sale_rental_type'] !== 'all'): ?>
-                    <input type="hidden" name="sale_rental_type" value="<?php echo esc_attr($settings['sale_rental_type']); ?>">
-                <?php endif; ?>
-
-                <?php if (!empty($settings['product_categories'])): ?>
-                    <input type="hidden" name="product_cat" value="<?php echo esc_attr(implode(',', $settings['product_categories'])); ?>">
+            <form action="<?php echo esc_url(home_url('/')); ?>" method="<?php echo $enable_quotation ? 'post' : 'get'; ?>" id="search-filter-form-<?php echo esc_attr($this->widget_id); ?>">
+                <?php if (!$enable_quotation): ?>
+                    <input type="hidden" name="post_type" value="product">
+                    <?php if ($settings['product_type'] !== 'all'): ?>
+                        <input type="hidden" name="product_type" value="<?php echo esc_attr($settings['product_type']); ?>">
+                    <?php endif; ?>
+                    <?php if ($settings['sale_rental_type'] !== 'all'): ?>
+                        <input type="hidden" name="sale_rental_type" value="<?php echo esc_attr($settings['sale_rental_type']); ?>">
+                    <?php endif; ?>
+                    <?php if (!empty($settings['product_categories'])): ?>
+                        <input type="hidden" name="product_cat" value="<?php echo esc_attr(implode(',', $settings['product_categories'])); ?>">
+                    <?php endif; ?>
                 <?php endif; ?>
 
                 <div class="filter-container">
                     <div class="filter-grid">
+                        <?php if ($enable_quotation): ?>
+                            <div class="input-wrapper">
+                                <input type="text" name="name" placeholder="<?php _e('Nom', 'text-domain'); ?>" required>
+                            </div>
+                            <div class="input-wrapper">
+                                <input type="email" name="email" placeholder="<?php _e('Email', 'text-domain'); ?>" required>
+                            </div>
+                        <?php endif; ?>
                         <?php foreach ($attributes as $attribute): ?>
-                            <?php
-                            $terms = get_terms([
-                                'taxonomy' => 'car_' . $attribute,
-                                'hide_empty' => false,
-                            ]);
-                            if (!empty($terms) && !is_wp_error($terms)):
-                                $placeholder = $this->get_translated_attribute_label($attribute);
-                            ?>
-                                <div class="select-wrapper">
-                                    <select name="<?php echo esc_attr($attribute); ?>" id="<?php echo esc_attr($attribute . '-' . $this->widget_id); ?>" class="dynamic-filter select2-filter" data-placeholder="<?php echo esc_attr($placeholder); ?>">
-                                        <option value=""><?php echo esc_html($placeholder); ?></option>
-                                        <?php foreach ($terms as $term): ?>
-                                            <option value="<?php echo esc_attr($term->slug); ?>"><?php echo esc_html($term->name); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                            <?php endif; ?>
+                            <div class="<?php echo $enable_quotation ? 'input-wrapper' : 'select-wrapper'; ?>">
+                                <?php if ($enable_quotation): ?>
+                                    <input type="text" name="<?php echo esc_attr($attribute); ?>" placeholder="<?php echo esc_attr($this->get_translated_attribute_label($attribute)); ?>">
+                                <?php else: ?>
+                                    <?php
+                                    $terms = get_terms([
+                                        'taxonomy' => 'car_' . $attribute,
+                                        'hide_empty' => false,
+                                    ]);
+                                    if (!empty($terms) && !is_wp_error($terms)):
+                                        $placeholder = $this->get_translated_attribute_label($attribute);
+                                    ?>
+                                        <select name="<?php echo esc_attr($attribute); ?>" id="<?php echo esc_attr($attribute . '-' . $this->widget_id); ?>" class="dynamic-filter select2-filter" data-placeholder="<?php echo esc_attr($placeholder); ?>">
+                                            <option value=""><?php echo esc_html($placeholder); ?></option>
+                                            <?php foreach ($terms as $term): ?>
+                                                <option value="<?php echo esc_attr($term->slug); ?>"><?php echo esc_html($term->name); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+                            </div>
                         <?php endforeach; ?>
                     </div>
-                    <div class="price-filter-container">
-                        <div class="price-filter">
-                            <label for="price-range-slider-<?php echo esc_attr($this->widget_id); ?>"><?php _e('Prix', 'text-domain'); ?></label>
-                            <div id="price-range-slider-<?php echo esc_attr($this->widget_id); ?>"></div>
-                            <div class="price-inputs">
-                                <div class="price-input-wrapper">
-                                    <input type="number" id="min_price-<?php echo esc_attr($this->widget_id); ?>" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
-                                    <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
-                                </div>
-                                <div class="price-input-wrapper">
-                                    <input type="number" id="max_price-<?php echo esc_attr($this->widget_id); ?>" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
-                                    <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
+                    <?php if (!$enable_quotation): ?>
+                        <div class="price-filter-container">
+                            <div class="price-filter">
+                                <label for="price-range-slider-<?php echo esc_attr($this->widget_id); ?>"><?php _e('Prix', 'text-domain'); ?></label>
+                                <div id="price-range-slider-<?php echo esc_attr($this->widget_id); ?>"></div>
+                                <div class="price-inputs">
+                                    <div class="price-input-wrapper">
+                                        <input type="number" id="min_price-<?php echo esc_attr($this->widget_id); ?>" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                                        <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
+                                    </div>
+                                    <div class="price-input-wrapper">
+                                        <input type="number" id="max_price-<?php echo esc_attr($this->widget_id); ?>" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                                        <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    <?php endif; ?>
                     <div class="search-button-container">
-                        <button type="submit" class="search-button"><?php _e('Rechercher', 'text-domain'); ?></button>
+                        <button type="submit" class="search-button"><?php echo $enable_quotation ? __('Envoyer', 'text-domain') : __('Rechercher', 'text-domain'); ?></button>
                     </div>
                 </div>
             </form>
@@ -190,99 +228,122 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
             jQuery(document).ready(function($) {
                 var widgetId = '<?php echo esc_js($this->widget_id); ?>';
                 var $widget = $('#' + widgetId);
+                var enableQuotation = <?php echo json_encode($enable_quotation); ?>;
 
-                $widget.find('.select2-filter').select2({
-                    width: '100%',
-                    placeholder: function() {
-                        return $(this).data('placeholder');
-                    },
-                    allowClear: true
-                });
-
-                var priceSlider = document.getElementById('price-range-slider-' + widgetId);
-                var minPrice = <?php echo $min_price; ?>;
-                var maxPrice = <?php echo $max_price; ?>;
-
-                noUiSlider.create(priceSlider, {
-                    start: [minPrice, maxPrice],
-                    connect: true,
-                    range: {
-                        'min': minPrice,
-                        'max': maxPrice
-                    },
-                    format: {
-                        to: function(value) {
-                            return Math.round(value);
+                if (!enableQuotation) {
+                    $widget.find('.select2-filter').select2({
+                        width: '100%',
+                        placeholder: function() {
+                            return $(this).data('placeholder');
                         },
-                        from: function(value) {
-                            return value;
-                        }
-                    }
-                });
+                        allowClear: true
+                    });
 
-                var minPriceInput = document.getElementById('min_price-' + widgetId);
-                var maxPriceInput = document.getElementById('max_price-' + widgetId);
+                    var priceSlider = document.getElementById('price-range-slider-' + widgetId);
+                    var minPrice = <?php echo $min_price; ?>;
+                    var maxPrice = <?php echo $max_price; ?>;
 
-                priceSlider.noUiSlider.on('update', function(values, handle) {
-                    var value = values[handle];
-                    if (handle) {
-                        maxPriceInput.value = value;
-                    } else {
-                        minPriceInput.value = value;
-                    }
-                });
-
-                minPriceInput.addEventListener('change', function() {
-                    priceSlider.noUiSlider.set([this.value, null]);
-                });
-
-                maxPriceInput.addEventListener('change', function() {
-                    priceSlider.noUiSlider.set([null, this.value]);
-                });
-
-                function updateFilters() {
-                    var formData = $widget.find('#search-filter-form-' + widgetId).serialize();
-                    $.ajax({
-                        url: '<?php echo admin_url('admin-ajax.php'); ?>',
-                        data: formData + '&action=update_dynamic_filters_elementor',
-                        success: function(response) {
-                            $.each(response, function(attribute, options) {
-                                var select = $widget.find('select[name="' + attribute + '"]');
-                                var currentValue = select.val();
-                                var placeholder = select.data('placeholder');
-                                select.empty();
-                                select.append($('<option>', {
-                                    value: '',
-                                    text: placeholder
-                                }));
-                                $.each(options, function(value, label) {
-                                    select.append($('<option>', {
-                                        value: value,
-                                        text: label
-                                    }));
-                                });
-                                if (options[currentValue]) {
-                                    select.val(currentValue);
-                                } else {
-                                    select.val('');
-                                }
-                                select.trigger('change');
-                            });
-
-                            if (response.price_range) {
-                                priceSlider.noUiSlider.updateOptions({
-                                    range: {
-                                        'min': response.price_range.min,
-                                        'max': response.price_range.max
-                                    }
-                                });
+                    noUiSlider.create(priceSlider, {
+                        start: [minPrice, maxPrice],
+                        connect: true,
+                        range: {
+                            'min': minPrice,
+                            'max': maxPrice
+                        },
+                        format: {
+                            to: function(value) {
+                                return Math.round(value);
+                            },
+                            from: function(value) {
+                                return value;
                             }
                         }
                     });
+
+                    var minPriceInput = document.getElementById('min_price-' + widgetId);
+                    var maxPriceInput = document.getElementById('max_price-' + widgetId);
+
+                    priceSlider.noUiSlider.on('update', function(values, handle) {
+                        var value = values[handle];
+                        if (handle) {
+                            maxPriceInput.value = value;
+                        } else {
+                            minPriceInput.value = value;
+                        }
+                    });
+
+                    minPriceInput.addEventListener('change', function() {
+                        priceSlider.noUiSlider.set([this.value, null]);
+                    });
+
+                    maxPriceInput.addEventListener('change', function() {
+                        priceSlider.noUiSlider.set([null, this.value]);
+                    });
+
+                    function updateFilters() {
+                        var formData = $widget.find('#search-filter-form-' + widgetId).serialize();
+                        $.ajax({
+                            url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                            data: formData + '&action=update_dynamic_filters_elementor',
+                            success: function(response) {
+                                $.each(response, function(attribute, options) {
+                                    var select = $widget.find('select[name="' + attribute + '"]');
+                                    var currentValue = select.val();
+                                    var placeholder = select.data('placeholder');
+                                    select.empty();
+                                    select.append($('<option>', {
+                                        value: '',
+                                        text: placeholder
+                                    }));
+                                    $.each(options, function(value, label) {
+                                        select.append($('<option>', {
+                                            value: value,
+                                            text: label
+                                        }));
+                                    });
+                                    if (options[currentValue]) {
+                                        select.val(currentValue);
+                                    } else {
+                                        select.val('');
+                                    }
+                                    select.trigger('change');
+                                });
+
+                                if (response.price_range) {
+                                    priceSlider.noUiSlider.updateOptions({
+                                        range: {
+                                            'min': response.price_range.min,
+                                            'max': response.price_range.max
+                                        }
+                                    });
+                                }
+                            }
+                        });
+                    }
+
+                    $widget.find('.dynamic-filter').change(updateFilters);
+                    updateFilters();
                 }
 
-                $widget.find('.dynamic-filter').change(updateFilters);
-                updateFilters();
+                if (enableQuotation) {
+                    $widget.find('form').submit(function(e) {
+                        e.preventDefault();
+                        var formData = $(this).serialize();
+                        $.ajax({
+                            url: '<?php echo admin_url('admin-ajax.php'); ?>',
+                            method: 'POST',
+                            data: formData + '&action=save_quotation',
+                            success: function(response) {
+                                if (response.success) {
+                                    alert('Votre demande de cotation a été envoyée avec succès.');
+                                    $widget.find('form')[0].reset();
+                                } else {
+                                    alert('Une erreur est survenue. Veuillez réessayer.');
+                                }
+                            }
+                        });
+                    });
+                }
             });
         </script>
         <style>
@@ -629,3 +690,36 @@ function enqueue_improved_woocommerce_search_filter_scripts()
     wp_enqueue_style('nouislider', 'https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/14.6.3/nouislider.min.css', array(), '14.6.3');
 }
 add_action('wp_enqueue_scripts', 'enqueue_improved_woocommerce_search_filter_scripts');
+
+function save_quotation()
+{
+    if (!isset($_POST['name']) || !isset($_POST['email'])) {
+        wp_send_json_error('Informations manquantes');
+    }
+
+    $quotation_data = array(
+        'post_title'    => 'Cotation - ' . sanitize_text_field($_POST['name']),
+        'post_content'  => '',
+        'post_status'   => 'publish',
+        'post_type'     => 'quotation',
+    );
+
+    $post_id = wp_insert_post($quotation_data);
+
+    if (!is_wp_error($post_id)) {
+        update_post_meta($post_id, '_quotation_name', sanitize_text_field($_POST['name']));
+        update_post_meta($post_id, '_quotation_email', sanitize_email($_POST['email']));
+
+        foreach ($_POST as $key => $value) {
+            if ($key !== 'name' && $key !== 'email' && $key !== 'action') {
+                update_post_meta($post_id, '_quotation_' . sanitize_key($key), sanitize_text_field($value));
+            }
+        }
+
+        wp_send_json_success('Cotation sauvegardée avec succès');
+    } else {
+        wp_send_json_error('Erreur lors de la sauvegarde de la cotation');
+    }
+}
+add_action('wp_ajax_save_quotation', 'save_quotation');
+add_action('wp_ajax_nopriv_save_quotation', 'save_quotation');

@@ -337,69 +337,20 @@ function pgr_register_elementor_widgets()
 }
 add_action('init', 'pgr_register_elementor_widgets');
 
-function handle_quotation_submission()
+function create_quotation_post_type()
 {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['quotation_submit'])) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'quotations';
-
-        $wpdb->insert(
-            $table_name,
-            array(
-                'time' => current_time('mysql'),
-                'name' => sanitize_text_field($_POST['name']),
-                'email' => sanitize_email($_POST['email']),
-                'nom_piece' => sanitize_text_field($_POST['nom_piece']),
-                'numero_chassis' => sanitize_text_field($_POST['numero_chassis']),
-                'marque' => sanitize_text_field($_POST['marque']),
-                'modele' => sanitize_text_field($_POST['modele']),
-                'sous_modele' => sanitize_text_field($_POST['sous_modele']),
-                'generation' => sanitize_text_field($_POST['generation']),
-                'annee' => sanitize_text_field($_POST['annee']),
-                'autres_informations' => sanitize_textarea_field($_POST['autres_informations']),
-            )
-        );
-
-        // Rediriger ou afficher un message de confirmation
-    }
-}
-
-add_action('init', 'handle_quotation_submission');
-
-function add_quotations_menu()
-{
-    add_menu_page(
-        'Cotations',
-        'Cotations',
-        'manage_options',
-        'quotations',
-        'display_quotations_page',
-        'dashicons-list-view',
-        6
+    register_post_type(
+        'quotation',
+        array(
+            'labels' => array(
+                'name' => __('Cotations'),
+                'singular_name' => __('Cotation')
+            ),
+            'public' => true,
+            'has_archive' => true,
+            'menu_icon' => 'dashicons-clipboard',
+            'supports' => array('title', 'editor', 'custom-fields')
+        )
     );
 }
-add_action('admin_menu', 'add_quotations_menu');
-
-function display_quotations_page()
-{
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'quotations';
-    $quotations = $wpdb->get_results("SELECT * FROM $table_name ORDER BY time DESC");
-
-    echo '<div class="wrap">';
-    echo '<h1>Cotations</h1>';
-    echo '<table class="widefat">';
-    echo '<thead><tr><th>Date</th><th>Nom</th><th>Email</th><th>Pièce</th><th>Actions</th></tr></thead>';
-    echo '<tbody>';
-    foreach ($quotations as $quotation) {
-        echo '<tr>';
-        echo '<td>' . esc_html($quotation->time) . '</td>';
-        echo '<td>' . esc_html($quotation->name) . '</td>';
-        echo '<td>' . esc_html($quotation->email) . '</td>';
-        echo '<td>' . esc_html($quotation->nom_piece) . '</td>';
-        echo '<td><a href="#">Voir détails</a></td>';
-        echo '</tr>';
-    }
-    echo '</tbody></table>';
-    echo '</div>';
-}
+add_action('init', 'create_quotation_post_type');
