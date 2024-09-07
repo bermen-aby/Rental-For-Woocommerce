@@ -41,6 +41,18 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         );
 
         $this->add_control(
+            'enable_quotation',
+            [
+                'label' => __('Activer la cotation', 'text-domain'),
+                'type' => \Elementor\Controls_Manager::SWITCHER,
+                'label_on' => __('Oui', 'text-domain'),
+                'label_off' => __('Non', 'text-domain'),
+                'return_value' => 'yes',
+                'default' => 'no',
+            ]
+        );
+
+        $this->add_control(
             'product_type',
             [
                 'label' => __('Type de produit', 'text-domain'),
@@ -81,10 +93,23 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         $this->add_control(
             'display_attributes',
             [
-                'label' => __('Attributs à afficher', 'text-domain'),
+                'label' => __('Attributs des Véhicules', 'text-domain'),
                 'type' => \Elementor\Controls_Manager::SELECT2,
                 'options' => $this->get_car_attributes(),
                 'multiple' => true,
+            ]
+        );
+
+        $this->add_control(
+            'spare_part_attributes',
+            [
+                'label' => __('Attributs des pièces détachées', 'text-domain'),
+                'type' => \Elementor\Controls_Manager::SELECT2,
+                'options' => $this->get_spare_part_attributes(),
+                'multiple' => true,
+                'condition' => [
+                    'product_type' => 'piece_detachee',
+                ],
             ]
         );
 
@@ -94,7 +119,9 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
     protected function render()
     {
         $settings = $this->get_settings_for_display();
-        $attributes = $settings['display_attributes'] ? $settings['display_attributes'] : array_keys($this->get_car_attributes());
+        $attributes = $settings['product_type'] === 'piece_detachee'
+            ? ($settings['spare_part_attributes'] ?: array_keys($this->get_spare_part_attributes()))
+            : ($settings['display_attributes'] ?: array_keys($this->get_car_attributes()));
         $max_price = $this->get_max_product_price();
         $min_price = $this->get_min_product_price();
         $currency_symbol = get_woocommerce_currency_symbol();
@@ -137,17 +164,19 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                             <?php endif; ?>
                         <?php endforeach; ?>
                     </div>
-                    <div class="price-filter">
-                        <label for="price-range-slider-<?php echo esc_attr($this->widget_id); ?>"><?php _e('Prix', 'text-domain'); ?></label>
-                        <div id="price-range-slider-<?php echo esc_attr($this->widget_id); ?>"></div>
-                        <div class="price-inputs">
-                            <div class="price-input-wrapper">
-                                <input type="number" id="min_price-<?php echo esc_attr($this->widget_id); ?>" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
-                                <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
-                            </div>
-                            <div class="price-input-wrapper">
-                                <input type="number" id="max_price-<?php echo esc_attr($this->widget_id); ?>" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
-                                <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
+                    <div class="price-filter-container">
+                        <div class="price-filter">
+                            <label for="price-range-slider-<?php echo esc_attr($this->widget_id); ?>"><?php _e('Prix', 'text-domain'); ?></label>
+                            <div id="price-range-slider-<?php echo esc_attr($this->widget_id); ?>"></div>
+                            <div class="price-inputs">
+                                <div class="price-input-wrapper">
+                                    <input type="number" id="min_price-<?php echo esc_attr($this->widget_id); ?>" name="min_price" value="<?php echo esc_attr($min_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                                    <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
+                                </div>
+                                <div class="price-input-wrapper">
+                                    <input type="number" id="max_price-<?php echo esc_attr($this->widget_id); ?>" name="max_price" value="<?php echo esc_attr($max_price); ?>" min="<?php echo esc_attr($min_price); ?>" max="<?php echo esc_attr($max_price); ?>">
+                                    <span class="currency-symbol"><?php echo esc_html($currency_symbol); ?></span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -354,6 +383,23 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                 margin: 0 auto;
             }
 
+            .price-filter-container {
+                display: flex;
+                justify-content: center;
+                width: 100%;
+            }
+
+            .price-filter {
+                width: 50%;
+                padding: 0 10px;
+                text-align: center;
+            }
+
+            #price-range-slider-<?php echo esc_attr($this->widget_id); ?> {
+                width: 100%;
+                margin: 10px auto;
+            }
+
             .select2-container--default .select2-selection--single {
                 border: 1px solid #ddd;
                 border-radius: 4px;
@@ -435,6 +481,20 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
             'type_carburant' => __('Type de carburant', 'text-domain'),
             'couleur_exterieure' => __('Couleur extérieure', 'text-domain'),
             'couleur_interieure' => __('Couleur intérieure', 'text-domain')
+        ];
+    }
+
+    private function get_spare_part_attributes()
+    {
+        return [
+            'type_accessoire' => __('Type d\'accessoire', 'text-domain'),
+            'numero_chassis' => __('Numéro de chassis', 'text-domain'),
+            'marque' => __('Marque', 'text-domain'),
+            'modele' => __('Modèle', 'text-domain'),
+            'sous_modele' => __('Sous-modèle', 'text-domain'),
+            'generation' => __('Génération', 'text-domain'),
+            'annee' => __('Année', 'text-domain'),
+            'spare_part_type' => __('Type de pièce détachée', 'text-domain'),
         ];
     }
 
