@@ -175,6 +175,9 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                             <div class="input-wrapper">
                                 <input type="email" name="email" placeholder="<?php _e('Email', 'text-domain'); ?>" required>
                             </div>
+                            <div class="input-wrapper">
+                                <input type="tel" name="phone" placeholder="<?php _e('Téléphone', 'text-domain'); ?>" required>
+                            </div>
                         <?php endif; ?>
                         <?php foreach ($attributes as $attribute): ?>
                             <div class="<?php echo $enable_quotation ? 'input-wrapper' : 'select-wrapper'; ?>">
@@ -199,6 +202,11 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                                 <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
+                        <?php if ($enable_quotation): ?>
+                            <div class="input-wrapper">
+                                <textarea name="additional_info" placeholder="<?php _e('Autres informations', 'text-domain'); ?>" rows="3"></textarea>
+                            </div>
+                        <?php endif; ?>
                     </div>
                     <?php if (!$enable_quotation): ?>
                         <div class="price-filter-container">
@@ -707,12 +715,28 @@ function save_quotation()
     $post_id = wp_insert_post($quotation_data);
 
     if (!is_wp_error($post_id)) {
-        update_post_meta($post_id, '_quotation_name', sanitize_text_field($_POST['name']));
-        update_post_meta($post_id, '_quotation_email', sanitize_email($_POST['email']));
+        $fields_to_save = array(
+            'name',
+            'email',
+            'phone',
+            'additional_info',
+            'marque',
+            'modele',
+            'annee',
+            'finition',
+            'etat',
+            'carrosserie',
+            'transmission',
+            'moteur',
+            'groupe_motopropulseur',
+            'type_carburant',
+            'couleur_exterieure',
+            'couleur_interieure'
+        );
 
-        foreach ($_POST as $key => $value) {
-            if ($key !== 'name' && $key !== 'email' && $key !== 'action') {
-                update_post_meta($post_id, '_quotation_' . sanitize_key($key), sanitize_text_field($value));
+        foreach ($fields_to_save as $field) {
+            if (isset($_POST[$field])) {
+                update_post_meta($post_id, '_quotation_' . $field, sanitize_text_field($_POST[$field]));
             }
         }
 

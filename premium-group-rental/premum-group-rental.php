@@ -354,3 +354,73 @@ function create_quotation_post_type()
     );
 }
 add_action('init', 'create_quotation_post_type');
+
+function add_quotation_meta_boxes()
+{
+    add_meta_box(
+        'quotation_details',
+        __('Détails de la cotation', 'text-domain'),
+        'display_quotation_meta_box',
+        'quotation',
+        'normal',
+        'high'
+    );
+}
+add_action('add_meta_boxes', 'add_quotation_meta_boxes');
+
+function display_quotation_meta_box($post)
+{
+    $fields = array(
+        'name' => 'Nom',
+        'email' => 'Email',
+        'phone' => 'Téléphone',
+        'additional_info' => 'Autres informations',
+        'marque' => 'Marque',
+        'modele' => 'Modèle',
+        'annee' => 'Année',
+        'finition' => 'Finition',
+        'etat' => 'État',
+        'carrosserie' => 'Carrosserie',
+        'transmission' => 'Transmission',
+        'moteur' => 'Moteur',
+        'groupe_motopropulseur' => 'Groupe motopropulseur',
+        'type_carburant' => 'Type de carburant',
+        'couleur_exterieure' => 'Couleur extérieure',
+        'couleur_interieure' => 'Couleur intérieure'
+    );
+
+    echo '<table class="form-table">';
+    foreach ($fields as $key => $label) {
+        $value = get_post_meta($post->ID, '_quotation_' . $key, true);
+        echo '<tr>';
+        echo '<th><label for="' . $key . '">' . $label . '</label></th>';
+        echo '<td>' . esc_html($value) . '</td>';
+        echo '</tr>';
+    }
+    echo '</table>';
+}
+
+function add_quotation_columns($columns)
+{
+    $columns['name'] = __('Nom', 'text-domain');
+    $columns['email'] = __('Email', 'text-domain');
+    $columns['phone'] = __('Téléphone', 'text-domain');
+    return $columns;
+}
+add_filter('manage_quotation_posts_columns', 'add_quotation_columns');
+
+function custom_quotation_column($column, $post_id)
+{
+    switch ($column) {
+        case 'name':
+            echo get_post_meta($post_id, '_quotation_name', true);
+            break;
+        case 'email':
+            echo get_post_meta($post_id, '_quotation_email', true);
+            break;
+        case 'phone':
+            echo get_post_meta($post_id, '_quotation_phone', true);
+            break;
+    }
+}
+add_action('manage_quotation_posts_custom_column', 'custom_quotation_column', 10, 2);
