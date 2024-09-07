@@ -85,7 +85,7 @@ class PremiumGroupSparePartsManager
         );
 
         // Ajouter les termes par défaut pour les types de pièces détachées
-        $spare_part_types = ['Accessoires', 'Carrosserie', 'Chassis', 'Intérieur', 'Moteur', 'Pneumatique'];
+        $spare_part_types = ['Accessoire', 'Carrosserie', 'Chassis', 'Intérieur', 'Moteur', 'Pneumatique', 'Autre'];
         foreach ($spare_part_types as $type) {
             if (!term_exists($type, 'spare_part_type')) {
                 wp_insert_term($type, 'spare_part_type');
@@ -116,7 +116,7 @@ class PremiumGroupSparePartsManager
         echo '<div id="spare_part_attributes_data" class="panel woocommerce_options_panel">';
 
         $fields = [
-            'type_accessoire' => 'Type d\'accessoire',
+            'nom_piece' => 'Nom de la pièce',
             'numero_chassis' => 'Numéro de chassis',
             'marque' => 'Marque',
             'modele' => 'Modèle',
@@ -127,7 +127,10 @@ class PremiumGroupSparePartsManager
 
         foreach ($fields as $key => $label) {
             $terms = get_the_terms($post->ID, 'spare_part_' . $key);
-            $value = $terms ? $terms[0]->name : '';
+            $value = '';
+            if ($terms && !is_wp_error($terms)) {
+                $value = $terms[0]->name;
+            }
 
             woocommerce_wp_text_input([
                 'id' => 'spare_part_' . $key,
@@ -149,8 +152,10 @@ class PremiumGroupSparePartsManager
         ]);
 
         $options = [];
-        foreach ($spare_part_types as $type) {
-            $options[$type->term_id] = $type->name;
+        if (!is_wp_error($spare_part_types)) {
+            foreach ($spare_part_types as $type) {
+                $options[$type->term_id] = $type->name;
+            }
         }
 
         woocommerce_wp_select([
