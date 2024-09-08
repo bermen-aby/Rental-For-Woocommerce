@@ -515,6 +515,11 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
             'type_carburant' => __('Type de carburant', 'text-domain'),
             'couleur_exterieure' => __('Couleur extérieure', 'text-domain'),
             'couleur_interieure' => __('Couleur intérieure', 'text-domain'),
+            'nom_piece' => __('Nom de la pièce', 'text-domain'),
+            'numero_chassis' => __('Numéro de chassis', 'text-domain'),
+            'sous_modele' => __('Sous-modèle', 'text-domain'),
+            'generation' => __('Génération', 'text-domain'),
+            'spare_part_type' => __('Type de pièce détachée', 'text-domain'),
         ];
 
         return isset($labels[$attribute]) ? $labels[$attribute] : ucfirst(str_replace('_', ' ', $attribute));
@@ -556,7 +561,7 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
     private function get_spare_part_attributes()
     {
         return [
-            'type_accessoire' => __('Type d\'accessoire', 'text-domain'),
+            'nom_piece' => __('Nom de la pièce', 'text-domain'),
             'numero_chassis' => __('Numéro de chassis', 'text-domain'),
             'marque' => __('Marque', 'text-domain'),
             'modele' => __('Modèle', 'text-domain'),
@@ -566,6 +571,8 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
             'spare_part_type' => __('Type de pièce détachée', 'text-domain'),
         ];
     }
+
+
 
     private function get_max_product_price()
     {
