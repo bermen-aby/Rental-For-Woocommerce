@@ -81,6 +81,20 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
         );
 
         $this->add_control(
+            'sale_rental_terms',
+            [
+                'label' => __('Termes Vente/Location', 'text-domain'),
+                'type' => \Elementor\Controls_Manager::SELECT2,
+                'options' => [
+                    'sale' => __('Vente', 'text-domain'),
+                    'rental' => __('Location', 'text-domain'),
+                ],
+                'multiple' => true,
+                'default' => ['sale', 'rental'],
+            ]
+        );
+
+        $this->add_control(
             'product_categories',
             [
                 'label' => __('Catégories de produits', 'text-domain'),
@@ -158,8 +172,8 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                     <?php if ($settings['product_type'] !== 'all'): ?>
                         <input type="hidden" name="product_type" value="<?php echo esc_attr($settings['product_type']); ?>">
                     <?php endif; ?>
-                    <?php if ($settings['sale_rental_type'] !== 'all'): ?>
-                        <input type="hidden" name="sale_rental_type" value="<?php echo esc_attr($settings['sale_rental_type']); ?>">
+                    <?php if (!empty($settings['sale_rental_terms'])): ?>
+                        <input type="hidden" name="sale_rental_terms" value="<?php echo esc_attr(implode(',', $settings['sale_rental_terms'])); ?>">
                     <?php endif; ?>
                     <?php if (!empty($settings['product_categories'])): ?>
                         <input type="hidden" name="product_cat" value="<?php echo esc_attr(implode(',', $settings['product_categories'])); ?>">
@@ -294,29 +308,6 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
                             url: '<?php echo admin_url('admin-ajax.php'); ?>',
                             data: formData + '&action=update_dynamic_filters_elementor',
                             success: function(response) {
-                                $.each(response, function(attribute, options) {
-                                    var select = $widget.find('select[name="' + attribute + '"]');
-                                    var currentValue = select.val();
-                                    var placeholder = select.data('placeholder');
-                                    select.empty();
-                                    select.append($('<option>', {
-                                        value: '',
-                                        text: placeholder
-                                    }));
-                                    $.each(options, function(value, label) {
-                                        select.append($('<option>', {
-                                            value: value,
-                                            text: label
-                                        }));
-                                    });
-                                    if (options[currentValue]) {
-                                        select.val(currentValue);
-                                    } else {
-                                        select.val('');
-                                    }
-                                    select.trigger('change');
-                                });
-
                                 if (response.price_range) {
                                     priceSlider.noUiSlider.updateOptions({
                                         range: {
@@ -601,6 +592,14 @@ class Improved_WooCommerce_Search_Filter_Widget extends \Elementor\Widget_Base
 // Modifiez la fonction AJAX pour prendre en compte les filtres sélectionnés
 function update_dynamic_filters_elementor()
 {
+    $query_args = [
+        'post_type' => 'product',
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+        'tax_query' => [],
+    ];
+
+    // Ajoutez les filtres sélectionnés à la requête
     $attributes = [
         'marque',
         'modele',
@@ -616,15 +615,6 @@ function update_dynamic_filters_elementor()
         'couleur_interieure'
     ];
 
-    $response = [];
-    $query_args = [
-        'post_type' => 'product',
-        'post_status' => 'publish',
-        'posts_per_page' => -1,
-        'tax_query' => [],
-    ];
-
-    // Ajoutez les filtres sélectionnés à la requête
     foreach ($attributes as $attribute) {
         if (!empty($_GET[$attribute])) {
             $query_args['tax_query'][] = [
@@ -635,31 +625,27 @@ function update_dynamic_filters_elementor()
         }
     }
 
+    // Ajoutez le filtre pour les termes Vente/Location
+    if (!empty($_GET['sale_rental_terms'])) {
+        $sale_rental_terms = explode(',', $_GET['sale_rental_terms']);
+        $query_args['tax_query'][] = [
+            'taxonomy' => 'rental_option',
+            'field' => 'slug',
+            'terms' => $sale_rental_terms,
+        ];
+    }
+
     // Exécutez la requête pour obtenir les produits filtrés
     $products_query = new WP_Query($query_args);
     $filtered_products = $products_query->posts;
 
-    // Pour chaque attribut, obtenez les termes disponibles pour les produits filtrés
-    foreach ($attributes as $attribute) {
-        $available_terms = [];
-        foreach ($filtered_products as $product) {
-            $terms = get_the_terms($product->ID, 'car_' . $attribute);
-            if ($terms && !is_wp_error($terms)) {
-                foreach ($terms as $term) {
-                    $available_terms[$term->slug] = $term->name;
-                }
-            }
-        }
-        $response[$attribute] = $available_terms;
-    }
-
-    // Ajoutez la plage de prix
-    $response['price_range'] = [
-        'min' => wc_get_min_price_of_filtered_products($filtered_products),
-        'max' => wc_get_max_price_of_filtered_products($filtered_products),
-    ];
-
-    wp_send_json($response);
+    // Renvoyez uniquement la plage de prix
+    wp_send_json([
+        'price_range' => [
+            'min' => wc_get_min_price_of_filtered_products($filtered_products),
+            'max' => wc_get_max_price_of_filtered_products($filtered_products),
+        ]
+    ]);
 }
 add_action('wp_ajax_update_dynamic_filters_elementor', 'update_dynamic_filters_elementor');
 add_action('wp_ajax_nopriv_update_dynamic_filters_elementor', 'update_dynamic_filters_elementor');
