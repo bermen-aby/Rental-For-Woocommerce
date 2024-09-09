@@ -337,69 +337,90 @@ function pgr_register_elementor_widgets()
 }
 add_action('init', 'pgr_register_elementor_widgets');
 
-function handle_quotation_submission()
+function create_quotation_post_type()
 {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['quotation_submit'])) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'quotations';
-
-        $wpdb->insert(
-            $table_name,
-            array(
-                'time' => current_time('mysql'),
-                'name' => sanitize_text_field($_POST['name']),
-                'email' => sanitize_email($_POST['email']),
-                'nom_piece' => sanitize_text_field($_POST['nom_piece']),
-                'numero_chassis' => sanitize_text_field($_POST['numero_chassis']),
-                'marque' => sanitize_text_field($_POST['marque']),
-                'modele' => sanitize_text_field($_POST['modele']),
-                'sous_modele' => sanitize_text_field($_POST['sous_modele']),
-                'generation' => sanitize_text_field($_POST['generation']),
-                'annee' => sanitize_text_field($_POST['annee']),
-                'autres_informations' => sanitize_textarea_field($_POST['autres_informations']),
-            )
-        );
-
-        // Rediriger ou afficher un message de confirmation
-    }
-}
-
-add_action('init', 'handle_quotation_submission');
-
-function add_quotations_menu()
-{
-    add_menu_page(
-        'Cotations',
-        'Cotations',
-        'manage_options',
-        'quotations',
-        'display_quotations_page',
-        'dashicons-list-view',
-        6
+    register_post_type(
+        'quotation',
+        array(
+            'labels' => array(
+                'name' => __('Cotations'),
+                'singular_name' => __('Cotation')
+            ),
+            'public' => true,
+            'has_archive' => true,
+            'menu_icon' => 'dashicons-clipboard',
+            'supports' => array('title', 'editor', 'custom-fields')
+        )
     );
 }
-add_action('admin_menu', 'add_quotations_menu');
+add_action('init', 'create_quotation_post_type');
 
-function display_quotations_page()
+function add_quotation_meta_boxes()
 {
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'quotations';
-    $quotations = $wpdb->get_results("SELECT * FROM $table_name ORDER BY time DESC");
+    add_meta_box(
+        'quotation_details',
+        __('Détails de la cotation', 'text-domain'),
+        'display_quotation_meta_box',
+        'quotation',
+        'normal',
+        'high'
+    );
+}
+add_action('add_meta_boxes', 'add_quotation_meta_boxes');
 
-    echo '<div class="wrap">';
-    echo '<h1>Cotations</h1>';
-    echo '<table class="widefat">';
-    echo '<thead><tr><th>Date</th><th>Nom</th><th>Email</th><th>Pièce</th><th>Actions</th></tr></thead>';
-    echo '<tbody>';
-    foreach ($quotations as $quotation) {
+function display_quotation_meta_box($post)
+{
+    $fields = array(
+        'name' => 'Nom',
+        'email' => 'Email',
+        'phone' => 'Téléphone',
+        'additional_info' => 'Autres informations',
+        'marque' => 'Marque',
+        'modele' => 'Modèle',
+        'annee' => 'Année',
+        'finition' => 'Finition',
+        'etat' => 'État',
+        'carrosserie' => 'Carrosserie',
+        'transmission' => 'Transmission',
+        'moteur' => 'Moteur',
+        'groupe_motopropulseur' => 'Groupe motopropulseur',
+        'type_carburant' => 'Type de carburant',
+        'couleur_exterieure' => 'Couleur extérieure',
+        'couleur_interieure' => 'Couleur intérieure'
+    );
+
+    echo '<table class="form-table">';
+    foreach ($fields as $key => $label) {
+        $value = get_post_meta($post->ID, '_quotation_' . $key, true);
         echo '<tr>';
-        echo '<td>' . esc_html($quotation->time) . '</td>';
-        echo '<td>' . esc_html($quotation->name) . '</td>';
-        echo '<td>' . esc_html($quotation->email) . '</td>';
-        echo '<td>' . esc_html($quotation->nom_piece) . '</td>';
-        echo '<td><a href="#">Voir détails</a></td>';
+        echo '<th><label for="' . $key . '">' . $label . '</label></th>';
+        echo '<td>' . esc_html($value) . '</td>';
         echo '</tr>';
     }
-    echo '</tbody></table>';
-    echo '</div>';
+    echo '</table>';
 }
+
+function add_quotation_columns($columns)
+{
+    $columns['name'] = __('Nom', 'text-domain');
+    $columns['email'] = __('Email', 'text-domain');
+    $columns['phone'] = __('Téléphone', 'text-domain');
+    return $columns;
+}
+add_filter('manage_quotation_posts_columns', 'add_quotation_columns');
+
+function custom_quotation_column($column, $post_id)
+{
+    switch ($column) {
+        case 'name':
+            echo get_post_meta($post_id, '_quotation_name', true);
+            break;
+        case 'email':
+            echo get_post_meta($post_id, '_quotation_email', true);
+            break;
+        case 'phone':
+            echo get_post_meta($post_id, '_quotation_phone', true);
+            break;
+    }
+}
+add_action('manage_quotation_posts_custom_column', 'custom_quotation_column', 10, 2);

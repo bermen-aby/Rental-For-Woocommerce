@@ -341,6 +341,18 @@ class PremiumGroupCarsManager
 // Initialiser le plugin
 new PremiumGroupCarsManager();
 
+function limit_etat_terms($terms, $taxonomies, $args)
+{
+    if (in_array('car_etat', $taxonomies)) {
+        $allowed_terms = array('neuf', 'comme-neuf', 'occasion');
+        $terms = array_filter($terms, function ($term) use ($allowed_terms) {
+            return in_array($term->slug, $allowed_terms);
+        });
+    }
+    return $terms;
+}
+add_filter('get_terms', 'limit_etat_terms', 10, 3);
+
 // Fonction pour gérer l'autocomplétion AJAX
 add_action('wp_ajax_get_car_attribute_suggestions', 'get_car_attribute_suggestions');
 add_action('wp_ajax_nopriv_get_car_attribute_suggestions', 'get_car_attribute_suggestions');
